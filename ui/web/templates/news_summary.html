@@ -1,0 +1,970 @@
+<h5>整體摘要</h5>
+                        <p id="topicGeneralSummary" class="mt-3"></p>
+                        
+                        <h5 class="mt-4">主題分析</h5>
+                        <div id="topicAnalysisList" class="mt-3"></div>
+                        
+                        <div class="mt-4">
+                            <h6>分析期間</h6>
+                            <p id="topicDateRange" class="text-muted"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 時間線摘要內容 -->
+            <div id="timelineSummaryContainer" style="display:none;">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" id="timelineSummaryTitle">2330 時間線分析</h5>
+                        <span class="badge bg-primary" id="timelineSummaryBadge">56 則新聞</span>
+                    </div>
+                    <div class="card-body">
+                        <h5>關鍵詞</h5>
+                        <div id="timelineKeyPhrasesList" class="mb-4"></div>
+                        
+                        <h5>新聞時間線</h5>
+                        <div id="timelineList" class="mt-3"></div>
+                        
+                        <div class="mt-4">
+                            <h6>分析期間</h6>
+                            <p id="timelineDateRange" class="text-muted"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 關鍵字搜尋摘要內容 -->
+            <div id="keywordsSummaryContainer" style="display:none;">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" id="keywordsSummaryTitle">關鍵字搜尋結果</h5>
+                        <span class="badge bg-primary" id="keywordsSummaryBadge">0 則新聞</span>
+                    </div>
+                    <div class="card-body">
+                        <h5>搜尋詞</h5>
+                        <div id="searchKeywordsList" class="mb-3"></div>
+                        
+                        <h5>摘要</h5>
+                        <p id="keywordsSummaryText" class="mt-3"></p>
+                        
+                        <h5 class="mt-4">關聯詞</h5>
+                        <div id="keywordsKeyPhrasesList" class="mt-2"></div>
+                        
+                        <h5 class="mt-4">主題分析</h5>
+                        <div id="keywordsTopicsList" class="mt-3"></div>
+                        
+                        <div class="mt-4">
+                            <h6>分析期間</h6>
+                            <p id="keywordsDateRange" class="text-muted"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 市場分析內容 -->
+            <div id="marketSummaryContainer" style="display:none;">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">市場整體分析</h5>
+                        <span class="badge bg-primary" id="marketSummaryBadge">0 則新聞</span>
+                    </div>
+                    <div class="card-body">
+                        <h5>市場整體摘要</h5>
+                        <p id="marketGeneralSummary" class="mt-3"></p>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <h5>熱門話題</h5>
+                                <div id="marketTopicsList" class="mt-3"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>熱門股票</h5>
+                                <div id="hotStocksList" class="mt-3"></div>
+                            </div>
+                        </div>
+                        
+                        <h5 class="mt-4">市場關鍵詞</h5>
+                        <div id="marketKeyPhrasesList" class="mt-2"></div>
+                        
+                        <div class="mt-4">
+                            <h6>分析期間</h6>
+                            <p id="marketDateRange" class="text-muted"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 主要 JavaScript -->
+    <script>
+        // 全局變數
+        let currentStockId = '';
+        let currentDays = 7;
+        let currentSummaryType = 'stock';
+        
+        // DOM 載入後執行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 事件監聽器註冊
+            document.getElementById('analyzeBtn').addEventListener('click', handleAnalyze);
+            document.getElementById('keywordsBtn').addEventListener('click', handleKeywordsSearch);
+            document.getElementById('marketBtn').addEventListener('click', handleMarketAnalysis);
+            
+            // 預先填入台積電作為示範
+            document.getElementById('stockIdInput').value = '2330';
+        });
+        
+        // 分析處理函數
+        function handleAnalyze() {
+            currentStockId = document.getElementById('stockIdInput').value.trim();
+            currentDays = parseInt(document.getElementById('daysSelect').value);
+            currentSummaryType = document.getElementById('summaryTypeSelect').value;
+            
+            if (!currentStockId) {
+                alert('請輸入股票代碼');
+                return;
+            }
+            
+            // 隱藏所有容器
+            hideAllContainers();
+            
+            // 顯示載入指示器
+            document.getElementById('loadingSpinner').style.display = 'block';
+            
+            // 依據摘要類型載入不同的資料
+            if (currentSummaryType === 'stock') {
+                loadStockReport();
+            } else if (currentSummaryType === 'topic') {
+                loadTopicSummary();
+            } else if (currentSummaryType === 'timeline') {
+                loadTimelineSummary();
+            }
+        }
+        
+        // 關鍵字搜尋處理函數
+        function handleKeywordsSearch() {
+            const keywordsInput = document.getElementById('keywordsInput').value.trim();
+            const days = parseInt(document.getElementById('keywordsDaysSelect').value);
+            
+            if (!keywordsInput) {
+                alert('請輸入關鍵字');
+                return;
+            }
+            
+            // 將關鍵字拆分為數組
+            const keywords = keywordsInput.split(',').map(k => k.trim()).filter(k => k);
+            
+            if (keywords.length === 0) {
+                alert('無效的關鍵字');
+                return;
+            }
+            
+            // 隱藏所有容器
+            hideAllContainers();
+            
+            // 顯示載入指示器
+            document.getElementById('loadingSpinner').style.display = 'block';
+            
+            // 載入關鍵字搜尋摘要
+            loadKeywordsSummary(keywords, days);
+        }
+        
+        // 市場分析處理函數
+        function handleMarketAnalysis() {
+            // 隱藏所有容器
+            hideAllContainers();
+            
+            // 顯示載入指示器
+            document.getElementById('loadingSpinner').style.display = 'block';
+            
+            // 載入市場摘要
+            loadMarketSummary();
+        }
+        
+        // 隱藏所有容器
+        function hideAllContainers() {
+            document.getElementById('stockReportContainer').style.display = 'none';
+            document.getElementById('topicSummaryContainer').style.display = 'none';
+            document.getElementById('timelineSummaryContainer').style.display = 'none';
+            document.getElementById('keywordsSummaryContainer').style.display = 'none';
+            document.getElementById('marketSummaryContainer').style.display = 'none';
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+        
+        // 載入股票報告
+        function loadStockReport() {
+            fetch(`/api/news/summary/stock?stock_id=${currentStockId}&days=${currentDays}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標題和標籤
+                        document.getElementById('stockReportTitle').textContent = `${currentStockId} 新聞摘要報告`;
+                        document.getElementById('stockReportBadge').textContent = `${data.news_count} 則新聞`;
+                        
+                        // 更新摘要內容
+                        document.getElementById('generalSummary').textContent = data.general_summary;
+                        document.getElementById('dateRange').textContent = data.date_range;
+                        
+                        // 更新關鍵詞
+                        const keyPhrasesList = document.getElementById('keyPhrasesList');
+                        keyPhrasesList.innerHTML = '';
+                        
+                        if (data.key_phrases && data.key_phrases.length > 0) {
+                            data.key_phrases.forEach(phrase => {
+                                keyPhrasesList.innerHTML += `<span class="keyword-tag">${phrase}</span>`;
+                            });
+                        } else {
+                            keyPhrasesList.innerHTML = '<p>無關鍵詞</p>';
+                        }
+                        
+                        // 更新主題
+                        const topicsList = document.getElementById('topicsList');
+                        topicsList.innerHTML = '';
+                        
+                        if (data.topics && data.topics.length > 0) {
+                            data.topics.forEach(topic => {
+                                let topicHtml = `
+                                    <div class="topic-card mb-3">
+                                        <h6>主題 ${topic.id + 1}</h6>
+                                        <div>關鍵詞: ${topic.keywords.join(', ')}</div>
+                                `;
+                                
+                                // 添加相關新聞
+                                if (topic.related_news && topic.related_news.length > 0) {
+                                    topicHtml += '<div class="mt-2">相關新聞:</div><ul class="mb-0 small">';
+                                    
+                                    topic.related_news.forEach(news => {
+                                        topicHtml += `<li>${news.publish_date} - ${news.title}</li>`;
+                                    });
+                                    
+                                    topicHtml += '</ul>';
+                                }
+                                
+                                topicHtml += '</div>';
+                                topicsList.innerHTML += topicHtml;
+                            });
+                        } else {
+                            topicsList.innerHTML = '<p>無主題分析</p>';
+                        }
+                        
+                        // 更新情緒分析
+                        if (data.sentiment_distribution) {
+                            const dist = data.sentiment_distribution;
+                            
+                            // 更新百分比
+                            document.getElementById('positivePercent').textContent = `${(dist.positive_ratio * 100).toFixed(1)}%`;
+                            document.getElementById('neutralPercent').textContent = `${(dist.neutral_ratio * 100).toFixed(1)}%`;
+                            document.getElementById('negativePercent').textContent = `${(dist.negative_ratio * 100).toFixed(1)}%`;
+                            
+                            // 更新進度條
+                            document.getElementById('positiveBar').style.width = `${dist.positive_ratio * 100}%`;
+                            document.getElementById('neutralBar').style.width = `${dist.neutral_ratio * 100}%`;
+                            document.getElementById('negativeBar').style.width = `${dist.negative_ratio * 100}%`;
+                            
+                            // 更新平均情緒
+                            const avgSentiment = document.getElementById('avgSentiment');
+                            avgSentiment.textContent = dist.avg_sentiment.toFixed(2);
+                            
+                            if (dist.avg_sentiment > 0.1) {
+                                avgSentiment.className = 'sentiment-positive';
+                            } else if (dist.avg_sentiment < -0.1) {
+                                avgSentiment.className = 'sentiment-negative';
+                            } else {
+                                avgSentiment.className = 'sentiment-neutral';
+                            }
+                        }
+                        
+                        // 更新情緒摘要
+                        document.getElementById('positiveSummary').textContent = data.positive_summary || '無正面新聞摘要';
+                        document.getElementById('negativeSummary').textContent = data.negative_summary || '無負面新聞摘要';
+                        
+                        // 更新重要新聞
+                        const importantNewsList = document.getElementById('importantNewsList');
+                        importantNewsList.innerHTML = '';
+                        
+                        if (data.important_news && data.important_news.length > 0) {
+                            data.important_news.forEach(news => {
+                                importantNewsList.innerHTML += `
+                                    <div class="news-item">
+                                        <h6>${news.title}</h6>
+                                        <p class="text-muted small">${news.source} | ${news.publish_date}</p>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            importantNewsList.innerHTML = '<p>無重要新聞</p>';
+                        }
+                        
+                        // 顯示股票報告容器
+                        hideAllContainers();
+                        document.getElementById('stockReportContainer').style.display = 'block';
+                    } else {
+                        alert(`載入股票報告失敗: ${data.message}`);
+                        hideAllContainers();
+                    }
+                })
+                .catch(error => {
+                    console.error('載入股票報告時發生錯誤:', error);
+                    alert('載入股票報告時發生錯誤，請查看控制台獲取詳細信息。');
+                    hideAllContainers();
+                });
+        }
+        
+        // 載入主題摘要
+        function loadTopicSummary() {
+            fetch(`/api/news/summary/topic?stock_id=${currentStockId}&days=${currentDays}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標題和標籤
+                        document.getElementById('topicSummaryTitle').textContent = `${currentStockId} 主題分析`;
+                        document.getElementById('topicSummaryBadge').textContent = `${data.news_count} 則新聞`;
+                        
+                        // 更新整體摘要
+                        document.getElementById('topicGeneralSummary').textContent = data.general_summary.summary || '無摘要';
+                        document.getElementById('topicDateRange').textContent = data.date_range;
+                        
+                        // 更新主題分析
+                        const topicAnalysisList = document.getElementById('topicAnalysisList');
+                        topicAnalysisList.innerHTML = '';
+                        
+                        if (data.topics && data.topics.length > 0) {
+                            data.topics.forEach(topic => {
+                                let topicHtml = `
+                                    <div class="topic-card mb-3">
+                                        <h6>主題 ${topic.id + 1}</h6>
+                                        <div>關鍵詞: ${topic.keywords.join(', ')}</div>
+                                        <p class="mt-2">${topic.summary || '無主題摘要'}</p>
+                                `;
+                                
+                                // 添加相關新聞
+                                if (topic.related_news && topic.related_news.length > 0) {
+                                    topicHtml += '<div class="mt-2">相關新聞:</div><ul class="mb-0 small">';
+                                    
+                                    topic.related_news.forEach(news => {
+                                        topicHtml += `<li>${news.publish_date} - ${news.title}</li>`;
+                                    });
+                                    
+                                    topicHtml += '</ul>';
+                                }
+                                
+                                topicHtml += '</div>';
+                                topicAnalysisList.innerHTML += topicHtml;
+                            });
+                        } else {
+                            topicAnalysisList.innerHTML = '<p>無主題分析</p>';
+                        }
+                        
+                        // 顯示主題摘要容器
+                        hideAllContainers();
+                        document.getElementById('topicSummaryContainer').style.display = 'block';
+                    } else {
+                        alert(`載入主題摘要失敗: ${data.message}`);
+                        hideAllContainers();
+                    }
+                })
+                .catch(error => {
+                    console.error('載入主題摘要時發生錯誤:', error);
+                    alert('載入主題摘要時發生錯誤，請查看控制台獲取詳細信息。');
+                    hideAllContainers();
+                });
+        }
+        
+        // 載入時間線摘要
+        function loadTimelineSummary() {
+            fetch(`/api/news/summary/timeline?stock_id=${currentStockId}&days=${currentDays}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標題和標籤
+                        document.getElementById('timelineSummaryTitle').textContent = `${currentStockId} 時間線分析`;
+                        document.getElementById('timelineSummaryBadge').textContent = `${data.news_count} 則新聞`;
+                        
+                        // 更新關鍵詞
+                        const keyPhrasesList = document.getElementById('timelineKeyPhrasesList');
+                        keyPhrasesList.innerHTML = '';
+                        
+                        if (data.key_phrases && data.key_phrases.length > 0) {
+                            data.key_phrases.forEach(phrase => {
+                                keyPhrasesList.innerHTML += `<span class="keyword-tag">${phrase}</span>`;
+                            });
+                        } else {
+                            keyPhrasesList.innerHTML = '<p>無關鍵詞</p>';
+                        }
+                        
+                        // 更新時間線
+                        const timelineList = document.getElementById('timelineList');
+                        timelineList.innerHTML = '';
+                        
+                        if (data.timeline && data.timeline.length > 0) {
+                            data.timeline.forEach(item => {
+                                // 計算情緒顏色
+                                let sentimentClass = 'sentiment-neutral';
+                                let sentimentIcon = 'fa-meh';
+                                
+                                if (item.avg_sentiment > 0.1) {
+                                    sentimentClass = 'sentiment-positive';
+                                    sentimentIcon = 'fa-smile';
+                                } else if (item.avg_sentiment < -0.1) {
+                                    sentimentClass = 'sentiment-negative';
+                                    sentimentIcon = 'fa-frown';
+                                }
+                                
+                                timelineList.innerHTML += `
+                                    <div class="timeline-item">
+                                        <div class="d-flex justify-content-between">
+                                            <h6>${item.date}</h6>
+                                            <span class="${sentimentClass}">
+                                                <i class="far ${sentimentIcon}"></i>
+                                                ${item.avg_sentiment ? item.avg_sentiment.toFixed(2) : '中性'}
+                                            </span>
+                                        </div>
+                                        <div class="small mb-2">
+                                            ${item.news_count} 則新聞 | 來源: ${item.sources.join(', ')}
+                                        </div>
+                                        <p>${item.summary || '無摘要'}</p>
+                                        <div>
+                                            ${item.key_phrases && item.key_phrases.map(phrase => `<span class="keyword-tag small">${phrase}</span>`).join('') || ''}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            timelineList.innerHTML = '<p>無時間線資料</p>';
+                        }
+                        
+                        document.getElementById('timelineDateRange').textContent = data.date_range;
+                        
+                        // 顯示時間線摘要容器
+                        hideAllContainers();
+                        document.getElementById('timelineSummaryContainer').style.display = 'block';
+                    } else {
+                        alert(`載入時間線摘要失敗: ${data.message}`);
+                        hideAllContainers();
+                    }
+                })
+                .catch(error => {
+                    console.error('載入時間線摘要時發生錯誤:', error);
+                    alert('載入時間線摘要時發生錯誤，請查看控制台獲取詳細信息。');
+                    hideAllContainers();
+                });
+        }
+        
+        // 載入關鍵字搜尋摘要
+        function loadKeywordsSummary(keywords, days) {
+            fetch('/api/news/summary/keywords', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    keywords: keywords,
+                    days: days
+                }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標題和標籤
+                        document.getElementById('keywordsSummaryTitle').textContent = '關鍵字搜尋結果';
+                        document.getElementById('keywordsSummaryBadge').textContent = `${data.news_count} 則新聞`;
+                        
+                        // 更新搜尋詞
+                        const searchKeywordsList = document.getElementById('searchKeywordsList');
+                        searchKeywordsList.innerHTML = '';
+                        
+                        data.keywords.forEach(keyword => {
+                            searchKeywordsList.innerHTML += `<span class="badge bg-primary me-2">${keyword}</span>`;
+                        });
+                        
+                        // 更新摘要
+                        document.getElementById('keywordsSummaryText').textContent = data.summary || '無摘要';
+                        document.getElementById('keywordsDateRange').textContent = data.date_range;
+                        
+                        // 更新關聯詞
+                        const keyPhrasesList = document.getElementById('keywordsKeyPhrasesList');
+                        keyPhrasesList.innerHTML = '';
+                        
+                        if (data.key_phrases && data.key_phrases.length > 0) {
+                            data.key_phrases.forEach(phrase => {
+                                keyPhrasesList.innerHTML += `<span class="keyword-tag">${phrase}</span>`;
+                            });
+                        } else {
+                            keyPhrasesList.innerHTML = '<p>無關聯詞</p>';
+                        }
+                        
+                        // 更新主題
+                        const topicsList = document.getElementById('keywordsTopicsList');
+                        topicsList.innerHTML = '';
+                        
+                        if (data.topics && data.topics.length > 0) {
+                            data.topics.forEach(topic => {
+                                let topicHtml = `
+                                    <div class="topic-card mb-3">
+                                        <h6>主題 ${topic.id + 1}</h6>
+                                        <div>關鍵詞: ${topic.keywords.join(', ')}</div>
+                                `;
+                                
+                                // 添加相關新聞
+                                if (topic.related_news && topic.related_news.length > 0) {
+                                    topicHtml += '<div class="mt-2">相關新聞:</div><ul class="mb-0 small">';
+                                    
+                                    topic.related_news.forEach(news => {
+                                        topicHtml += `<li>${news.publish_date} - ${news.title}</li>`;
+                                    });
+                                    
+                                    topicHtml += '</ul>';
+                                }
+                                
+                                topicHtml += '</div>';
+                                topicsList.innerHTML += topicHtml;
+                            });
+                        } else {
+                            topicsList.innerHTML = '<p>無主題分析</p>';
+                        }
+                        
+                        // 顯示關鍵字搜尋摘要容器
+                        hideAllContainers();
+                        document.getElementById('keywordsSummaryContainer').style.display = 'block';
+                    } else {
+                        alert(`關鍵字搜尋失敗: ${data.message}`);
+                        hideAllContainers();
+                    }
+                })
+                .catch(error => {
+                    console.error('關鍵字搜尋時發生錯誤:', error);
+                    alert('關鍵字搜尋時發生錯誤，請查看控制台獲取詳細信息。');
+                    hideAllContainers();
+                });
+        }
+        
+        // 載入市場摘要
+        function loadMarketSummary() {
+            fetch('/api/news/summary/market')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標籤
+                        document.getElementById('marketSummaryBadge').textContent = `${data.news_count} 則新聞`;
+                        
+                        // 更新摘要
+                        document.getElementById('marketGeneralSummary').textContent = data.general_summary || '無摘要';
+                        document.getElementById('marketDateRange').textContent = data.date_range;
+                        
+                        // 更新關鍵詞
+                        const keyPhrasesList = document.getElementById('marketKeyPhrasesList');
+                        keyPhrasesList.innerHTML = '';
+                        
+                        if (data.key_phrases && data.key_phrases.length > 0) {
+                            data.key_phrases.forEach(phrase => {
+                                keyPhrasesList.innerHTML += `<span class="keyword-tag">${phrase}</span>`;
+                            });
+                        } else {
+                            keyPhrasesList.innerHTML = '<p>無關鍵詞</p>';
+                        }
+                        
+                        // 更新熱門話題
+                        const topicsList = document.getElementById('marketTopicsList');
+                        topicsList.innerHTML = '';
+                        
+                        if (data.topics && data.topics.length > 0) {
+                            data.topics.forEach(topic => {
+                                let topicHtml = `
+                                    <div class="topic-card mb-3">
+                                        <h6>主題 ${topic.id + 1}</h6>
+                                        <div>關鍵詞: ${topic.keywords.join(', ')}</div>
+                                `;
+                                
+                                // 添加相關新聞
+                                if (topic.related_news && topic.related_news.length > 0) {
+                                    topicHtml += '<div class="mt-2">相關新聞:</div><ul class="mb-0 small">';
+                                    
+                                    topic.related_news.forEach(news => {
+                                        topicHtml += `<li>${news.publish_date} - ${news.title}</li>`;
+                                    });
+                                    
+                                    topicHtml += '</ul>';
+                                }
+                                
+                                topicHtml += '</div>';
+                                topicsList.innerHTML += topicHtml;
+                            });
+                        } else {
+                            topicsList.innerHTML = '<p>無主題分析</p>';
+                        }
+                        
+                        // 更新熱門股票
+                        const hotStocksList = document.getElementById('hotStocksList');
+                        hotStocksList.innerHTML = '';
+                        
+                        if (data.hot_stocks && data.hot_stocks.length > 0) {
+                            data.hot_stocks.forEach(stock => {
+                                // 計算情緒顏色
+                                let sentimentClass = 'sentiment-neutral';
+                                let sentimentIcon = 'fa-meh';
+                                
+                                if (stock.avg_sentiment > 0.1) {
+                                    sentimentClass = 'sentiment-positive';
+                                    sentimentIcon = 'fa-smile';
+                                } else if (stock.avg_sentiment < -0.1) {
+                                    sentimentClass = 'sentiment-negative';
+                                    sentimentIcon = 'fa-frown';
+                                }
+                                
+                                hotStocksList.innerHTML += `
+                                    <div class="stock-badge mb-2 p-2">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>${stock.stock_id}</strong>
+                                            <span class="${sentimentClass}">
+                                                <i class="far ${sentimentIcon}"></i>
+                                                ${stock.avg_sentiment.toFixed(2)}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            ${stock.company_name || ''}
+                                            <span class="badge bg-secondary">${stock.news_count} 則新聞</span>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            hotStocksList.innerHTML = '<p>無熱門股票</p>';
+                        }
+                        
+                        // 顯示市場摘要容器
+                        hideAllContainers();
+                        document.getElementById('marketSummaryContainer').style.display = 'block';
+                    } else {
+                        alert(`載入市場摘要失敗: ${data.message}`);
+                        hideAllContainers();
+                    }
+                })
+                .catch(error => {
+                    console.error('載入市場摘要時發生錯誤:', error);
+                    alert('載入市場摘要時發生錯誤，請查看控制台獲取詳細信息。');
+                    hideAllContainers();
+                });
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新聞摘要分析</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- 自定義樣式 -->
+    <style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .keyword-tag {
+            display: inline-block;
+            background-color: #f8f9fa;
+            padding: 3px 8px;
+            margin: 2px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+        }
+        .sentiment-positive {
+            color: #28a745;
+        }
+        .sentiment-negative {
+            color: #dc3545;
+        }
+        .sentiment-neutral {
+            color: #6c757d;
+        }
+        .timeline-item {
+            position: relative;
+            padding-left: 35px;
+            padding-bottom: 25px;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background-color: #dee2e6;
+        }
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            left: 5px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #007bff;
+        }
+        .timeline-item:last-child::before {
+            height: 15px;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .news-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .news-item:last-child {
+            border-bottom: none;
+        }
+        .stock-badge {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 2px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .topic-card {
+            border-left: 3px solid #007bff;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #f8f9fa;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">新聞摘要分析</h1>
+        
+        <!-- 控制面板 -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">分析設定</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="stockIdInput" class="form-label">股票代碼</label>
+                            <input type="text" class="form-control" id="stockIdInput" placeholder="例如: 2330">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="daysSelect" class="form-label">分析天數</label>
+                            <select class="form-select" id="daysSelect">
+                                <option value="3">最近3天</option>
+                                <option value="7" selected>最近一週</option>
+                                <option value="14">最近兩週</option>
+                                <option value="30">最近一個月</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="summaryTypeSelect" class="form-label">摘要類型</label>
+                            <select class="form-select" id="summaryTypeSelect">
+                                <option value="stock" selected>綜合報告</option>
+                                <option value="topic">主題摘要</option>
+                                <option value="timeline">時間線摘要</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" id="analyzeBtn">
+                            <i class="fas fa-search"></i> 分析
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 關鍵字搜尋 -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="keywordsInput" class="form-label">關鍵字搜尋</label>
+                            <input type="text" class="form-control" id="keywordsInput" placeholder="輸入關鍵字，以逗號分隔">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="keywordsDaysSelect" class="form-label">關鍵字搜尋天數</label>
+                            <select class="form-select" id="keywordsDaysSelect">
+                                <option value="3">最近3天</option>
+                                <option value="7" selected>最近一週</option>
+                                <option value="14">最近兩週</option>
+                                <option value="30">最近一個月</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-outline-primary w-100" id="keywordsBtn">
+                            <i class="fas fa-search"></i> 關鍵字搜尋
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 市場分析 -->
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-outline-success" id="marketBtn">
+                                <i class="fas fa-chart-line"></i> 市場整體分析
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 分析結果區域 -->
+        <div id="summaryContainer">
+            <!-- 載入指示器 -->
+            <div class="loading-spinner" id="loadingSpinner">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">載入中...</span>
+                </div>
+            </div>
+            
+            <!-- 股票報告內容 -->
+            <div id="stockReportContainer" style="display:none;">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" id="stockReportTitle">2330 新聞摘要報告</h5>
+                        <span class="badge bg-primary" id="stockReportBadge">56 則新聞</span>
+                    </div>
+                    <div class="card-body">
+                        <ul class="nav nav-pills mb-3" id="stockReportTabs">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#summary-tab-pane">摘要</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#topics-tab-pane">主題</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#sentiment-tab-pane">情緒分析</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#news-tab-pane">重要新聞</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content">
+                            <!-- 摘要頁籤 -->
+                            <div class="tab-pane fade show active" id="summary-tab-pane">
+                                <h5>整體摘要</h5>
+                                <p id="generalSummary" class="mt-3"></p>
+                                
+                                <h5 class="mt-4">關鍵詞</h5>
+                                <div id="keyPhrasesList" class="mt-2"></div>
+                                
+                                <div class="mt-4">
+                                    <h6>分析期間</h6>
+                                    <p id="dateRange" class="text-muted"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- 主題頁籤 -->
+                            <div class="tab-pane fade" id="topics-tab-pane">
+                                <div id="topicsList"></div>
+                            </div>
+                            
+                            <!-- 情緒分析頁籤 -->
+                            <div class="tab-pane fade" id="sentiment-tab-pane">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h5>情緒分布</h5>
+                                        <div class="mt-3">
+                                            <div class="d-flex justify-content-between">
+                                                <span>正面新聞</span>
+                                                <span id="positivePercent">0%</span>
+                                            </div>
+                                            <div class="progress mb-3" style="height: 15px;">
+                                                <div class="progress-bar bg-success" id="positiveBar" role="progressbar" style="width: 0%"></div>
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-between">
+                                                <span>中性新聞</span>
+                                                <span id="neutralPercent">0%</span>
+                                            </div>
+                                            <div class="progress mb-3" style="height: 15px;">
+                                                <div class="progress-bar bg-secondary" id="neutralBar" role="progressbar" style="width: 0%"></div>
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-between">
+                                                <span>負面新聞</span>
+                                                <span id="negativePercent">0%</span>
+                                            </div>
+                                            <div class="progress mb-3" style="height: 15px;">
+                                                <div class="progress-bar bg-danger" id="negativeBar" role="progressbar" style="width: 0%"></div>
+                                            </div>
+                                            
+                                            <div class="mt-3">
+                                                <strong>平均情緒: </strong>
+                                                <span id="avgSentiment" class="sentiment-neutral">0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h5>情緒摘要</h5>
+                                        <div class="card bg-light mt-3">
+                                            <div class="card-body">
+                                                <h6 class="card-title sentiment-positive">正面新聞摘要</h6>
+                                                <p id="positiveSummary" class="card-text"></p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="card bg-light mt-3">
+                                            <div class="card-body">
+                                                <h6 class="card-title sentiment-negative">負面新聞摘要</h6>
+                                                <p id="negativeSummary" class="card-text"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 重要新聞頁籤 -->
+                            <div class="tab-pane fade" id="news-tab-pane">
+                                <h5>重要新聞</h5>
+                                <div id="importantNewsList" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 主題摘要內容 -->
+            <div id="topicSummaryContainer" style="display:none;">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" id="topicSummaryTitle">2330 主題分析</h5>
+                        <span class="badge bg-primary" id="topicSummaryBadge">56 則新聞</span>
+                    </div>
+                    <div class="card-body">
+                        <h5>整體摘要</h5>
+                        <p id="topicGeneralSummary" class="mt-3"></p>
+                        
+                        <h5 class="mt-4">主題分析</h5>
+                        <div id="topicAnalysisList" class="mt-3"></div>
+                        
+                        <div class="mt-4">
+                            <h6>分析期間</h6>
+                            <p id="topicDateRange" class="text-muted"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

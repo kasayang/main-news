@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新聞與股價整合分析</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 自定義樣式 -->
+    <style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .correlation-bar {
+            height: 20px;
+            border-radius: 3px;
+            margin-bottom: 5px;
+        }
+        .correlation-positive {
+            background-color: #28a745;
+        }
+        .correlation-negative {
+            background-color: #dc3545;
+        }
+        .correlation-label {
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+        .sentiment-positive {
+            color: #28a745;
+        }
+        .sentiment-negative {
+            color: #dc3545;
+        }
+        .sentiment-neutral {
+            color: #6c757d;
+        }
+        .news-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .news-item:last-child {
+            border-bottom: none;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .prediction-card {
+            border-left: 5px solid #007bff;
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .prediction-up {
+            border-left-color: #28a745;
+        }
+        .prediction-down {
+            border-left-color: #dc3545;
+        }
+        .prediction-neutral {
+            border-left-color: #6c757d;
+        }
+        .significant-event {
+            position: relative;
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+            margin-bottom: 15px;
+        }
+        .significant-event.positive {
+            border-left-color: #28a745;
+        }
+        .significant-event.negative {
+            border-left-color: #dc3545;
+        }
+        .significant-event::before {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #007bff;
+            left: -8px;
+            top: 0;
+        }
+        .significant-event.positive::before {
+            background-color: #28a745;
+        }
+        .significant-event.negative::before {
+            background-color: #dc3545;
+        }
+        .turning-point {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .turning-point.align {
+            border-left: 3px solid #28a745;
+        }
+        .turning-point.not-align {
+            border-left: 3px solid #dc3545;
+        }
+        #correlationChart, #turningPointsChart {
+            height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">新聞與股價整合分析</h1>
+        
+        <!-- 控制面板 -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">分析設定</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="stockIdInput" class="form-label">股票代碼</label>
+                            <input type="text" class="form-control" id="stockIdInput" placeholder="例如: 2330">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="daysSelect" class="form-label">分析天數</label>
+                            <select class="form-select" id="daysSelect">
+                                <option value="30">最近一個月</option>
+                                <option value="60">最近兩個月</option>
+                                <option value="90" selected>最近三個月</option>
+                                <option value="180">最近半年</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="thresholdInput" class="form-label">價格變動閾值 (%)</label>
+                            <input type="number" class="form-control" id="thresholdInput" value="2.0" min="0.5" max="10" step="0.5">
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" id="analyzeBtn">
+                            <i class="fas fa-chart-line"></i> 分析
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 分析結果區域 -->
+        <div class="row">
+            <!-- 左側欄 - 相關性與預測 -->
+            <div class="col-md-6">
+                <!-- 相關性分析卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">新聞情緒與股價相關性</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="loading-spinner" id="correlationLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="correlationContent" style="display:none;">
+                            <h6 id="correlationTitle">2330 新聞情緒與股價相關性分析</h6>
+                            <div class="mb-3">
+                                <strong>最佳相關性:</strong> <span id="bestCorrelation">0</span>
+                                <span id="correlationSignificance" class="badge bg-success ms-2">顯著</span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <strong>新聞量與股價波動相關性:</strong> <span id="volumeCorrelation">0</span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <strong>最近趨勢:</strong>
+                                <div class="d-flex mt-2">
+                                    <div class="me-3">
+                                        <span>股價:</span>
+                                        <span id="recentPriceTrend">+0.5%</span>
+                                    </div>
+                                    <div>
+                                        <span>情緒:</span>
+                                        <span id="recentSentimentTrend">0.2</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <canvas id="correlationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 預測分析卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">股價影響預測</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="loading-spinner" id="predictionLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="predictionContent" style="display:none;">
+                            <div id="predictionCard" class="prediction-card">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <h5 id="predictionTitle">2330 股價預測</h5>
+                                    <span id="predictionConfidence" class="badge bg-primary">信心: 65%</span>
+                                </div>
+                                <div class="mt-2">
+                                    <h3 id="predictionDirection">上漲</h3>
+                                    <p id="predictionReasoning">
+                                        基於新聞領先股價3天的相關性分析，近期的正面新聞情緒可能對股價產生上漲影響
+                                    </p>
+                                </div>
+                                <div class="mt-3">
+                                    <div class="d-flex justify-content-between">
+                                        <div><strong>分析天數:</strong> <span id="predictionDays">90</span> 天</div>
+                                        <div><strong>預測窗口:</strong> <span id="predictionWindow">5</span> 天</div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <strong>新聞數量:</strong> <span id="predictionNewsCount">56</span> 則
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右側欄 - 重大事件與轉折點 -->
+            <div class="col-md-6">
+                <!-- 重大事件卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">重大新聞事件分析</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="loading-spinner" id="eventsLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="eventsContent" style="display:none;">
+                            <div class="mb-3">
+                                <h6 id="eventsTitle">2330 重大事件分析</h6>
+                                <div class="d-flex justify-content-between">
+                                    <div><strong>重大事件數:</strong> <span id="eventsCount">5</span></div>
+                                    <div><strong>新聞與股價一致比例:</strong> <span id="eventsAlignmentRatio">75%</span></div>
+                                </div>
+                            </div>
+                            
+                            <div id="significantEventsList" class="mt-4">
+                                <!-- 這裡將由 JavaScript 填充重大事件 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 轉折點分析卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">情緒轉折點分析</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="loading-spinner" id="turningPointsLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="turningPointsContent" style="display:none;">
+                            <div class="mb-3">
+                                <h6 id="turningPointsTitle">2330 情緒轉折點分析</h6>
+                                <div class="d-flex justify-content-between">
+                                    <div><strong>轉折點數量:</strong> <span id="turningPointsCount">3</span></div>
+                                    <div>
+                                        <strong>5天後一致比例:</strong> <span id="turningPointsAlignmentRatio5d">60%</span>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <strong>10天後一致比例:</strong> <span id="turningPointsAlignmentRatio10d">80%</span>
+                                </div>
+                            </div>
+                            
+                            <canvas id="turningPointsChart"></canvas>
+                            
+                            <div id="turningPointsList" class="mt-4">
+                                <!-- 這裡將由 JavaScript 填充轉折點 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 主要 JavaScript -->
+    <script>
+        // 全局變數
+        let currentStockId = '';
+        let currentDays = 90;
+        let currentThreshold = 2.0;
+        let chartObjects = {
+            correlation: null,
+            turningPoints: null
+        };
+        
+        // DOM 載入後執行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 事件監聽器註冊
+            document.getElementById('analyzeBtn').addEventListener('click', handleAnalyze);
+            
+            // 預先填入台積電作為示範
+            document.getElementById('stockIdInput').value = '2330';
+        });
+        
+        // 分析處理函數
+        function handleAnalyze() {
+            currentStockId = document.getElementById('stockIdInput').value.trim();
+            currentDays = parseInt(document.getElementById('daysSelect').value);
+            currentThreshold = parseFloat(document.getElementById('thresholdInput').value);
+            
+            if (!currentStockId) {
+                alert('請輸入股票代碼');
+                return;
+            }
+            
+            // 載入各項分析
+            loadCorrelationAnalysis();
+            loadImpactPrediction();
+            loadSignificantEvents();
+            loadTurningPoints();
+        }
+        
+        // 載入相關性分析
+        function loadCorrelationAnalysis() {
+            const spinner = document.getElementById('correlationLoadingSpinner');
+            const content = document.getElementById('correlationContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            fetch(`/api/news-price/correlation?stock_id=${currentStockId}&days=${currentDays}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標題
+                        document.getElementById('correlationTitle').textContent = `${currentStockId} 新聞情緒與股價相關性分析`;
+                        
+                        // 更新最佳相關性
+                        const bestCorr = data.correlation_analysis.best_correlation;
+                        const corrValue = bestCorr.correlation.toFixed(3);
+                        const isPositive = bestCorr.correlation > 0;
+                        
+                        document.getElementById('bestCorrelation').textContent = `${corrValue} (${bestCorr.label})`;
+                        document.getElementById('bestCorrelation').className = isPositive ? 'sentiment-positive' : 'sentiment-negative';
+                        
+                        // 更新顯著性標記
+                        const isSignificant = data.correlation_analysis.is_significant;
+                        const significanceEl = document.getElementById('correlationSignificance');
+                        
+                        if (isSignificant) {
+                            significanceEl.className = 'badge bg-success ms-2';
+                            significanceEl.textContent = '顯著';
+                        } else {
+                            significanceEl.className = 'badge bg-warning ms-2';
+                            significanceEl.textContent = '不顯著';
+                        }
+                        
+                        // 更新新聞量與股價波動相關性
+                        const volumeCorr = data.news_statistics.news_volume_price_volatility_correlation.toFixed(3);
+                        document.getElementById('volumeCorrelation').textContent = volumeCorr;
+                        
+                        // 更新最近趨勢
+                        const priceTrend = data.recent_trends.price_change_percent;
+                        const sentimentTrend = data.recent_trends.sentiment_score;
+                        
+                        const priceTrendEl = document.getElementById('recentPriceTrend');
+                        priceTrendEl.textContent = `${priceTrend > 0 ? '+' : ''}${priceTrend.toFixed(2)}%`;
+                        priceTrendEl.className = priceTrend > 0 ? 'sentiment-positive' : priceTrend < 0 ? 'sentiment-negative' : 'sentiment-neutral';
+                        
+                        const sentimentTrendEl = document.getElementById('recentSentimentTrend');
+                        sentimentTrendEl.textContent = sentimentTrend.toFixed(2);
+                        sentimentTrendEl.className = sentimentTrend > 0.1 ? 'sentiment-positive' : sentimentTrend < -0.1 ? 'sentiment-negative' : 'sentiment-neutral';
+                        
+                        // 繪製相關性圖表
+                        renderCorrelationChart(data.correlation_analysis.lag_correlations);
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        alert(`載入相關性分析失敗: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入相關性分析時發生錯誤:', error);
+                    alert('載入相關性分析時發生錯誤，請查看控制台獲取詳細信息。');
+                    spinner.style.display = 'none';
+                });
+        }
+        
+        // 載入影響預測
+        function loadImpactPrediction() {
+            const spinner = document.getElementById('predictionLoadingSpinner');
+            const content = document.getElementById('predictionContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            fetch(`/api/news-price/impact-prediction?stock_id=${currentStockId}&recent_days=30`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' || data.status === 'warning') {
+                        // 更新標題
+                        document.getElementById('predictionTitle').textContent = `${currentStockId} 股價預測`;
+                        
+                        // 更新信心指數
+                        const confidence = data.prediction.confidence * 100;
+                        document.getElementById('predictionConfidence').textContent = `信心: ${confidence.toFixed(0)}%`;
+                        
+                        // 根據信心調整標籤顏色
+                        if (confidence < 40) {
+                            document.getElementById('predictionConfidence').className = 'badge bg-secondary';
+                        } else if (confidence < 70) {
+                            document.getElementById('predictionConfidence').className = 'badge bg-primary';
+                        } else {
+                            document.getElementById('predictionConfidence').className = 'badge bg-success';
+                        }
+                        
+                        // 更新預測方向
+                        const direction = data.prediction.direction;
+                        document.getElementById('predictionDirection').textContent = direction;
+                        
+                        // 根據方向設置樣式
+                        const predictionCard = document.getElementById('predictionCard');
+                        if (direction === '上漲') {
+                            predictionCard.className = 'prediction-card prediction-up';
+                            document.getElementById('predictionDirection').className = 'sentiment-positive';
+                        } else if (direction === '下跌') {
+                            predictionCard.className = 'prediction-card prediction-down';
+                            document.getElementById('predictionDirection').className = 'sentiment-negative';
+                        } else {
+                            predictionCard.className = 'prediction-card prediction-neutral';
+                            document.getElementById('predictionDirection').className = 'sentiment-neutral';
+                        }
+                        
+                        // 更新預測理由
+                        document.getElementById('predictionReasoning').textContent = data.prediction.reasoning;
+                        
+                        // 更新分析資訊
+                        document.getElementById('predictionDays').textContent = currentDays;
+                        document.getElementById('predictionWindow').textContent = data.prediction.window_days;
+                        document.getElementById('predictionNewsCount').textContent = data.analysis.news_count_last_days;
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        alert(`載入預測失敗: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入預測時發生錯誤:', error);
+                    alert('載入預測時發生錯誤，請查看控制台獲取詳細信息。');
+                    spinner.style.display = 'none';
+                });
+        }
+        
+        // 載入重大事件
+        function loadSignificantEvents() {
+            const spinner = document.getElementById('eventsLoadingSpinner');
+            const content = document.getElementById('eventsContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            fetch(`/api/news-price/significant-events?stock_id=${currentStockId}&days=${currentDays}&threshold=${currentThreshold}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標題
+                        document.getElementById('eventsTitle').textContent = `${currentStockId} 重大事件分析`;
+                        
+                        // 更新事件統計
+                        document.getElementById('eventsCount').textContent = data.summary.significant_event_count;
+                        document.getElementById('eventsAlignmentRatio').textContent = `${(data.summary.news_price_alignment_ratio * 100).toFixed(0)}%`;
+                        
+                        // 清空事件列表
+                        const eventsList = document.getElementById('significantEventsList');
+                        eventsList.innerHTML = '';
+                        
+                        // 添加事件
+                        if (data.significant_events && data.significant_events.length > 0) {
+                            data.significant_events.forEach(event => {
+                                // 決定事件類型
+                                const isPositive = event.price_change > 0;
+                                const eventClass = isPositive ? 'positive' : 'negative';
+                                const changeDirection = isPositive ? '上漲' : '下跌';
+                                
+                                // 建立事件 HTML
+                                let eventHtml = `
+                                    <div class="significant-event ${eventClass}">
+                                        <div class="d-flex justify-content-between">
+                                            <h6>${event.date} 股價${changeDirection} ${Math.abs(event.price_change).toFixed(2)}%</h6>
+                                            <span class="badge ${event.is_aligned ? 'bg-success' : 'bg-warning'}">
+                                                ${event.is_aligned ? '新聞一致' : '新聞不一致'}
+                                            </span>
+                                        </div>
+                                        <div class="small mb-2">
+                                            平均情緒: <span class="${event.avg_sentiment > 0 ? 'sentiment-positive' : event.avg_sentiment < 0 ? 'sentiment-negative' : 'sentiment-neutral'}">
+                                                ${event.avg_sentiment.toFixed(2)}
+                                            </span> | 
+                                            新聞數量: ${event.news_count}
+                                        </div>
+                                `;
+                                
+                                // 添加相關新聞
+                                if (event.related_news && event.related_news.length > 0) {
+                                    eventHtml += '<div class="mt-2">相關新聞：</div><ul class="mb-0 small">';
+                                    
+                                    event.related_news.forEach(news => {
+                                        eventHtml += `<li>${news.publish_date} - ${news.title}</li>`;
+                                    });
+                                    
+                                    eventHtml += '</ul>';
+                                } else {
+                                    eventHtml += '<div class="text-muted small">無相關新聞</div>';
+                                }
+                                
+                                eventHtml += '</div>';
+                                eventsList.innerHTML += eventHtml;
+                            });
+                        } else {
+                            eventsList.innerHTML = '<div class="text-center text-muted">沒有找到重大事件</div>';
+                        }
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        alert(`載入重大事件失敗: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入重大事件時發生錯誤:', error);
+                    alert('載入重大事件時發生錯誤，請查看控制台獲取詳細信息。');
+                    spinner.style.display = 'none';
+                });
+        }
+        
+        // 載入轉折點分析
+        function loadTurningPoints() {
+            const spinner = document.getElementById('turningPointsLoadingSpinner');
+            const content = document.getElementById('turningPointsContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            fetch(`/api/news-price/turning-points?stock_id=${currentStockId}&days=${currentDays}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 更新標題
+                        document.getElementById('turningPointsTitle').textContent = `${currentStockId} 情緒轉折點分析`;
+                        
+                        // 更新統計資訊
+                        document.getElementById('turningPointsCount').textContent = data.summary.turning_point_count;
+                        document.getElementById('turningPointsAlignmentRatio5d').textContent = `${(data.summary.alignment_ratio_5d * 100).toFixed(0)}%`;
+                        document.getElementById('turningPointsAlignmentRatio10d').textContent = `${(data.summary.alignment_ratio_10d * 100).toFixed(0)}%`;
+                        
+                        // 清空轉折點列表
+                        const pointsList = document.getElementById('turningPointsList');
+                        pointsList.innerHTML = '';
+                        
+                        // 添加轉折點
+                        if (data.turning_points && data.turning_points.length > 0) {
+                            // 繪製圖表
+                            renderTurningPointsChart(data);
+                            
+                            data.turning_points.forEach(point => {
+                                // 判斷是否一致
+                                const isAligned5d = point.is_aligned_5d;
+                                const isAligned10d = point.is_aligned_10d;
+                                
+                                // 計算整體一致性
+                                const overallAlign = (isAligned5d && isAligned10d) || (isAligned5d && point.price_change_10d === null) || (isAligned10d && point.price_change_5d === null);
+                                
+                                // 建立 HTML
+                                let pointHtml = `
+                                    <div class="turning-point ${overallAlign ? 'align' : 'not-align'}">
+                                        <div class="d-flex justify-content-between">
+                                            <h6>${point.date} 情緒${point.direction}</h6>
+                                            <span class="badge ${overallAlign ? 'bg-success' : 'bg-danger'}">
+                                                ${overallAlign ? '預測準確' : '預測不準確'}
+                                            </span>
+                                        </div>
+                                        <div class="mt-2">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <strong>5天後:</strong> 
+                                                    <span class="${point.price_change_5d > 0 ? 'sentiment-positive' : point.price_change_5d < 0 ? 'sentiment-negative' : 'sentiment-neutral'}">
+                                                        ${point.price_change_5d === null ? 'N/A' : `${point.price_change_5d > 0 ? '+' : ''}${point.price_change_5d.toFixed(2)}%`}
+                                                    </span>
+                                                </div>
+                                                <div class="col-6">
+                                                    <strong>10天後:</strong> 
+                                                    <span class="${point.price_change_10d > 0 ? 'sentiment-positive' : point.price_change_10d < 0 ? 'sentiment-negative' : 'sentiment-neutral'}">
+                                                        ${point.price_change_10d === null ? 'N/A' : `${point.price_change_10d > 0 ? '+' : ''}${point.price_change_10d.toFixed(2)}%`}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                `;
+                                
+                                // 添加相關新聞
+                                if (point.related_news && point.related_news.length > 0) {
+                                    pointHtml += '<div class="mt-2">相關新聞:</div><ul class="mb-0 small">';
+                                    
+                                    point.related_news.forEach(news => {
+                                        pointHtml += `<li>${news.publish_date} - ${news.title}</li>`;
+                                    });
+                                    
+                                    pointHtml += '</ul>';
+                                }
+                                
+                                pointHtml += '</div>';
+                                pointsList.innerHTML += pointHtml;
+                            });
+                        } else {
+                            document.getElementById('turningPointsChart').style.display = 'none';
+                            pointsList.innerHTML = '<div class="text-center text-muted">沒有找到情緒轉折點</div>';
+                        }
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        alert(`載入轉折點分析失敗: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入轉折點分析時發生錯誤:', error);
+                    alert('載入轉折點分析時發生錯誤，請查看控制台獲取詳細信息。');
+                    spinner.style.display = 'none';
+                });
+        }
+        
+        // 渲染相關性圖表
+        function renderCorrelationChart(correlations) {
+            const canvas = document.getElementById('correlationChart');
+            const ctx = canvas.getContext('2d');
+            
+            // 如果已有圖表，銷毀它
+            if (chartObjects.correlation) {
+                chartObjects.correlation.destroy();
+            }
+            
+            // 準備資料
+            const labels = correlations.map(item => item.label);
+            const correlationData = correlations.map(item => item.correlation);
+            const backgroundColors = correlationData.map(value => value >= 0 ? 'rgba(40, 167, 69, 0.7)' : 'rgba(220, 53, 69, 0.7)');
+            const borderColors = correlationData.map(value => value >= 0 ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)');
+            
+            // 創建新的圖表
+            chartObjects.correlation = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '相關係數',
+                        data: correlationData,
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '不同滯後天數的相關性系數'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    const value = context.raw;
+                                    return `${label}${value.toFixed(3)} (p-value: ${correlations[context.dataIndex].p_value.toFixed(3)})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            suggestedMin: -0.5,
+                            suggestedMax: 0.5
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 渲染轉折點圖表
+        function renderTurningPointsChart(data) {
+            const canvas = document.getElementById('turningPointsChart');
+            const ctx = canvas.getContext('2d');
+            canvas.style.display = 'block';
+            
+            // 如果已有圖表，銷毀它
+            if (chartObjects.turningPoints) {
+                chartObjects.turningPoints.destroy();
+            }
+            
+            // 準備資料
+            const turningPoints = data.turning_points;
+            const labels = turningPoints.map(point => point.date);
+            
+            // 獲取價格變化數據
+            const price5dData = turningPoints.map(point => point.price_change_5d);
+            const price10dData = turningPoints.map(point => point.price_change_10d);
+            
+            // 獲取轉折方向作為註釋
+            const directions = turningPoints.map(point => point.direction);
+            
+            // 創建新的圖表
+            chartObjects.turningPoints = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '5天後價格變化 (%)',
+                            data: price5dData,
+                            backgroundColor: price5dData.map(val => val > 0 ? 'rgba(40, 167, 69, 0.7)' : 'rgba(220, 53, 69, 0.7)'),
+                            borderColor: price5dData.map(val => val > 0 ? 'rgb(40, 167, 69)' : 'rgb(220, 53, 69)'),
+                            borderWidth: 1
+                        },
+                        {
+                            label: '10天後價格變化 (%)',
+                            data: price10dData,
+                            backgroundColor: price10dData.map(val => val > 0 ? 'rgba(0, 123, 255, 0.7)' : 'rgba(108, 117, 125, 0.7)'),
+                            borderColor: price10dData.map(val => val > 0 ? 'rgb(0, 123, 255)' : 'rgb(108, 117, 125)'),
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '情緒轉折點後的股價變化'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const index = context.dataIndex;
+                                    return `情緒轉折: ${directions[index]}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: '價格變化 (%)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

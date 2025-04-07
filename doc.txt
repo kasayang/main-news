@@ -1,0 +1,73 @@
+stock_analysis/
+│
+├── data_collectors/           # 資料收集模組
+│   ├── __init__.py
+│   ├── collector_base.py      # 基礎收集器類別
+│   ├── price_collector.py     # 原 StockDataDownloader 的部分功能
+│   ├── news_collector.py      # 新聞收集器
+│   ├── financial_collector.py # 財務資料收集器
+│   └── technical_collector.py # 技術指標收集器
+│
+├── analyzers/                 # 分析模組
+│   ├── __init__.py
+│   ├── analyzer_base.py       # 基礎分析器類別
+│   ├── price_analyzer.py      # 股價分析
+│   ├── news_analyzer.py       # 新聞分析
+│   ├── technical_analyzer.py  # 技術指標分析
+│   └── financial_analyzer.py  # 財務分析
+│
+├── models/                    # 預測模型
+│   ├── __init__.py
+│   ├── model_base.py          # 基礎模型類別
+│   ├── price_model.py         # 原 StockPricePredictor
+│   ├── news_model.py          # 新聞情緒分析模型
+│   └── combined_model.py      # 綜合模型
+│
+├── database/                  # 資料庫處理
+│   ├── __init__.py
+│   └── db_manager.py          # 資料庫管理器
+│
+├── ui/                        # 使用者介面
+│   ├── __init__.py
+│   ├── desktop/               # 桌面應用 (Tkinter)
+│   │   ├── __init__.py
+│   │   ├── app.py             # 主應用程式
+│   │   ├── tabs/              # 分頁元件
+│   │   │   ├── __init__.py
+│   │   │   ├── download_tab.py
+│   │   │   ├── training_tab.py
+│   │   │   ├── prediction_tab.py
+│   │   │   ├── batch_prediction_tab.py
+│   │   │   ├── stock_filter_tab.py
+│   │   │   └── news_tab.py    # 新增: 新聞頁面
+│   │   └── widgets/          # 共用元件
+│   │
+│   └── web/                  # 網頁應用 (Flask)
+│       ├── __init__.py
+│       ├── app.py            # Flask 應用
+│       ├── routes/           # 路由定義
+│       │       ├──api_server.py                   # 桌面應用入口
+│       │       ├── api_client.py               # 網頁應用入口           
+│       │       ├── news_api.py               # 提供REST API接口供前端調用 
+│       │       ├── news_summarizer_api.py                
+│       │       └── news_price_api.py              # 提供這個新聞與股價整合分析功能的接口
+│       │ 
+│       ├── templates/        # HTML 模板                           
+│       │       ├──download.html
+│       │       ├── index.html            
+│       │       ├── news.html 
+│       │       └── news_price_analysis.html 
+│       └── static/           # 靜態資源
+│
+├── utils/                    # 通用工具
+│   ├── __init__.py
+│   ├── config.py             # 設定檔
+│   ├── logger.py             # 日誌工具
+│   └── helpers.py            # 輔助函數
+│
+├── 
+│
+├── stock_prediction_app_modular.py.py                   # 桌面應用入口
+└── web_main.py               # 網頁應用入口
+└── news_summarizer.py              
+ 

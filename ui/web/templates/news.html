@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票新聞分析</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 自定義樣式 -->
+    <style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .news-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .news-item:last-child {
+            border-bottom: none;
+        }
+        .sentiment-positive {
+            color: #28a745;
+        }
+        .sentiment-negative {
+            color: #dc3545;
+        }
+        .sentiment-neutral {
+            color: #6c757d;
+        }
+        .keyword-tag {
+            display: inline-block;
+            background-color: #f8f9fa;
+            padding: 3px 8px;
+            margin: 2px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+        }
+        .progress-bar-positive {
+            background-color: #28a745;
+        }
+        .progress-bar-negative {
+            background-color: #dc3545;
+        }
+        .progress-bar-neutral {
+            background-color: #6c757d;
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .stock-badge {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 2px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        #sentimentChart, #newsVolumeChart {
+            height: 250px;
+        }
+        .topic-card {
+            transition: transform 0.2s;
+        }
+        .topic-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .news-title-link {
+            color: #333;
+            text-decoration: none;
+        }
+        .news-title-link:hover {
+            color: #007bff;
+            text-decoration: underline;
+        }
+        .modal-xl {
+            max-width: 90%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">股票新聞分析系統</h1>
+        
+        <!-- 控制面板 -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">搜尋與過濾</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="stockIdInput" class="form-label">股票代碼</label>
+                            <input type="text" class="form-control" id="stockIdInput" placeholder="例如: 2330">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="daysSelect" class="form-label">時間範圍</label>
+                            <select class="form-select" id="daysSelect">
+                                <option value="7">最近一週</option>
+                                <option value="14">最近兩週</option>
+                                <option value="30" selected>最近一個月</option>
+                                <option value="90">最近三個月</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label for="sentimentFilter" class="form-label">情緒過濾</label>
+                            <select class="form-select" id="sentimentFilter">
+                                <option value="all" selected>全部</option>
+                                <option value="positive">正面</option>
+                                <option value="neutral">中性</option>
+                                <option value="negative">負面</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" id="searchBtn">
+                            <i class="fas fa-search"></i> 搜尋
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 新聞下載區 -->
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-outline-success" id="downloadNewsBtn">
+                                <i class="fas fa-sync"></i> 下載最新新聞
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 資訊儀表板 -->
+        <div class="row">
+            <!-- 左側欄 - 情緒摘要與趨勢 -->
+            <div class="col-md-4">
+                <!-- 情緒摘要卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">情緒摘要</h5>
+                    </div>
+                    <div class="card-body" id="sentimentSummaryCard">
+                        <div class="loading-spinner" id="summaryLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="sentimentSummaryContent" style="display:none;">
+                            <h4 id="stockTitle">全部新聞</h4>
+                            <p><strong>新聞數量:</strong> <span id="newsCount">0</span></p>
+                            <p><strong>平均情緒分數:</strong> <span id="avgSentiment">0</span></p>
+                            
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between">
+                                    <span>正面新聞</span>
+                                    <span id="positivePercent">0%</span>
+                                </div>
+                                <div class="progress mb-3" style="height: 10px;">
+                                    <div class="progress-bar progress-bar-positive" id="positiveBar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between">
+                                    <span>中性新聞</span>
+                                    <span id="neutralPercent">0%</span>
+                                </div>
+                                <div class="progress mb-3" style="height: 10px;">
+                                    <div class="progress-bar progress-bar-neutral" id="neutralBar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between">
+                                    <span>負面新聞</span>
+                                    <span id="negativePercent">0%</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar progress-bar-negative" id="negativeBar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 關鍵字卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">熱門關鍵字</h5>
+                    </div>
+                    <div class="card-body" id="keywordsCard">
+                        <div class="loading-spinner" id="keywordsLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="keywordsContent" style="display:none;">
+                            <!-- 這裡將由 JavaScript 填充關鍵字標籤 -->
+                            <div id="keywordsList"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 熱門主題卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">熱門話題</h5>
+                    </div>
+                    <div class="card-body" id="topicsCard">
+                        <div class="loading-spinner" id="topicsLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="topicsContent" style="display:none;">
+                            <!-- 這裡將由 JavaScript 填充熱門主題 -->
+                            <div id="topicsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 中間欄 - 新聞列表 -->
+            <div class="col-md-8">
+                <!-- 情緒圖表卡片 -->
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="chartTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="sentiment-tab" data-bs-toggle="tab" data-bs-target="#sentiment-chart" type="button" role="tab" aria-controls="sentiment-chart" aria-selected="true">情緒趨勢</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="volume-tab" data-bs-toggle="tab" data-bs-target="#volume-chart" type="button" role="tab" aria-controls="volume-chart" aria-selected="false">新聞數量</button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="sentiment-chart" role="tabpanel" aria-labelledby="sentiment-tab">
+                                <div class="loading-spinner" id="chartLoadingSpinner">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">載入中...</span>
+                                    </div>
+                                </div>
+                                <canvas id="sentimentChart"></canvas>
+                            </div>
+                            <div class="tab-pane fade" id="volume-chart" role="tabpanel" aria-labelledby="volume-tab">
+                                <canvas id="newsVolumeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 新聞列表卡片 -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">新聞列表</h5>
+                        <span class="badge bg-primary" id="newsListCount">0 則新聞</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="loading-spinner" id="newsLoadingSpinner">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">載入中...</span>
+                            </div>
+                        </div>
+                        <div id="newsList"></div>
+                        <div class="text-center mt-3" id="loadMoreBtnContainer" style="display:none;">
+                            <button class="btn btn-outline-primary" id="loadMoreBtn">
+                                載入更多
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 新聞詳情彈出視窗 -->
+    <div class="modal fade" id="newsDetailModal" tabindex="-1" aria-labelledby="newsDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="newsDetailModalLabel">新聞詳情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="loading-spinner" id="modalLoadingSpinner">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">載入中...</span>
+                        </div>
+                    </div>
+                    <div id="newsDetailContent" style="display:none;">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h3 id="modalNewsTitle"></h3>
+                                <div class="d-flex justify-content-between mb-3">
+                                    <div>
+                                        <span class="badge bg-secondary" id="modalNewsSource"></span>
+                                        <span class="text-muted" id="modalNewsDate"></span>
+                                    </div>
+                                    <div id="modalNewsSentiment"></div>
+                                </div>
+                                <hr>
+                                <div id="modalNewsContent" class="mt-3"></div>
+                                <hr>
+                                <h5>關鍵字</h5>
+                                <div id="modalNewsKeywords"></div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">相關股票</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="modalRelatedStocks"></div>
+                                    </div>
+                                </div>
+                                <div class="card mt-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">情緒分析</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="modalSentimentChart" height="200"></canvas>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <a href="#" class="btn btn-primary" id="modalNewsUrl" target="_blank">
+                                        <i class="fas fa-external-link-alt"></i> 查看原文
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 主要 JavaScript -->
+    <script>
+        // 全局變數
+        let currentStockId = '';
+        let currentDays = 30;
+        let currentSentimentFilter = 'all';
+        let newsCache = [];
+        let chartObjects = {
+            sentiment: null,
+            volume: null,
+            modalSentiment: null
+        };
+        
+        // DOM 載入後執行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始載入最新新聞
+            loadLatestNews();
+            
+            // 載入情緒摘要
+            loadSentimentSummary();
+            
+            // 載入關鍵字
+            loadKeywords();
+            
+            // 載入熱門主題
+            loadTopics();
+            
+            // 載入情緒趨勢圖
+            loadSentimentTrend();
+            
+            // 事件監聽器註冊
+            document.getElementById('searchBtn').addEventListener('click', handleSearch);
+            document.getElementById('downloadNewsBtn').addEventListener('click', handleDownloadNews);
+            document.getElementById('loadMoreBtn').addEventListener('click', handleLoadMore);
+            document.getElementById('chartTabs').addEventListener('click', handleChartTabChange);
+        });
+        
+        // 搜尋處理函數
+        function handleSearch() {
+            currentStockId = document.getElementById('stockIdInput').value.trim();
+            currentDays = parseInt(document.getElementById('daysSelect').value);
+            currentSentimentFilter = document.getElementById('sentimentFilter').value;
+            
+            // 重新載入所有資料
+            loadLatestNews();
+            loadSentimentSummary();
+            loadKeywords();
+            loadSentimentTrend();
+        }
+        
+        // 下載新聞處理函數
+        function handleDownloadNews() {
+            const downloadBtn = document.getElementById('downloadNewsBtn');
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 下載中...';
+            
+            fetch('/api/news/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ days: 7 }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(`下載成功！共下載了 ${data.news_count} 則新聞。`);
+                    // 重新載入所有資料
+                    loadLatestNews();
+                    loadSentimentSummary();
+                    loadKeywords();
+                    loadTopics();
+                    loadSentimentTrend();
+                } else {
+                    alert(`下載失敗: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('下載新聞時發生錯誤:', error);
+                alert('下載新聞時發生錯誤，請查看控制台獲取詳細信息。');
+            })
+            .finally(() => {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = '<i class="fas fa-sync"></i> 下載最新新聞';
+            });
+        }
+        
+        // 載入更多新聞
+        function handleLoadMore() {
+            const limit = 20;
+            const offset = newsCache.length;
+            loadLatestNews(limit, offset);
+        }
+        
+        // 圖表標籤切換處理
+        function handleChartTabChange(event) {
+            if (event.target.id === 'volume-tab') {
+                // 確保音量圖表已經初始化
+                if (!chartObjects.volume) {
+                    initNewsVolumeChart();
+                }
+            }
+        }
+        
+        // 載入最新新聞
+        function loadLatestNews(limit = 20, offset = 0) {
+            const spinner = document.getElementById('newsLoadingSpinner');
+            spinner.style.display = 'block';
+            
+            if (offset === 0) {
+                // 如果是第一次載入，清空新聞列表
+                newsCache = [];
+                document.getElementById('newsList').innerHTML = '';
+                document.getElementById('loadMoreBtnContainer').style.display = 'none';
+            }
+            
+            let url = `/api/news/latest?days=${currentDays}&limit=${limit}`;
+            if (currentStockId) {
+                url += `&stock_id=${currentStockId}`;
+            }
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 篩選情緒
+                        let filteredNews = data.news;
+                        if (currentSentimentFilter !== 'all') {
+                            filteredNews = filteredNews.filter(news => {
+                                if (currentSentimentFilter === 'positive') {
+                                    return news.sentiment_score > 0.2;
+                                } else if (currentSentimentFilter === 'negative') {
+                                    return news.sentiment_score < -0.2;
+                                } else {
+                                    return news.sentiment_score >= -0.2 && news.sentiment_score <= 0.2;
+                                }
+                            });
+                        }
+                        
+                        // 添加到緩存
+                        newsCache = newsCache.concat(filteredNews);
+                        
+                        // 更新新聞列表
+                        renderNewsList(filteredNews, offset > 0);
+                        
+                        // 更新新聞計數
+                        document.getElementById('newsListCount').textContent = `${newsCache.length} 則新聞`;
+                        
+                        // 如果有更多新聞，顯示載入更多按鈕
+                        if (filteredNews.length >= limit) {
+                            document.getElementById('loadMoreBtnContainer').style.display = 'block';
+                        } else {
+                            document.getElementById('loadMoreBtnContainer').style.display = 'none';
+                        }
+                    } else {
+                        console.error('載入新聞失敗:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入新聞時發生錯誤:', error);
+                })
+                .finally(() => {
+                    spinner.style.display = 'none';
+                });
+        }
+        
+        // 渲染新聞列表
+        function renderNewsList(newsList, append = false) {
+            const newsListEl = document.getElementById('newsList');
+            let newsHtml = append ? newsListEl.innerHTML : '';
+            
+            newsList.forEach(news => {
+                // 獲取情緒標籤和顏色
+                let sentimentClass = 'sentiment-neutral';
+                let sentimentLabel = '中性';
+                let sentimentIcon = 'fa-meh';
+                
+                if (news.sentiment_score > 0.2) {
+                    sentimentClass = 'sentiment-positive';
+                    sentimentLabel = '正面';
+                    sentimentIcon = 'fa-smile';
+                } else if (news.sentiment_score < -0.2) {
+                    sentimentClass = 'sentiment-negative';
+                    sentimentLabel = '負面';
+                    sentimentIcon = 'fa-frown';
+                }
+                
+                // 格式化日期
+                const publishDate = news.publish_date;
+                
+                newsHtml += `
+                    <div class="news-item" data-news-id="${news.id}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <h5 class="mb-1">
+                                <a href="#" class="news-title-link" data-bs-toggle="modal" data-bs-target="#newsDetailModal" data-news-id="${news.id}">
+                                    ${news.title}
+                                </a>
+                            </h5>
+                            <span class="badge ${sentimentClass}">
+                                <i class="far ${sentimentIcon}"></i> ${sentimentLabel}
+                            </span>
+                        </div>
+                        <p class="text-muted small">
+                            ${news.source} | ${publishDate}
+                        </p>
+                        <p class="mb-1">
+                            ${news.content || '無內容摘要'}
+                        </p>
+                    </div>
+                `;
+            });
+            
+            newsListEl.innerHTML = newsHtml;
+            
+            // 註冊新聞點擊事件
+            document.querySelectorAll('.news-title-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const newsId = this.getAttribute('data-news-id');
+                    loadNewsDetail(newsId);
+                });
+            });
+        }
+        
+        // 載入新聞詳情
+        function loadNewsDetail(newsId) {
+            const spinner = document.getElementById('modalLoadingSpinner');
+            const content = document.getElementById('newsDetailContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            fetch(`/api/news/detail/${newsId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const news = data.data.news;
+                        const relatedStocks = data.data.related_stocks;
+                        
+                        // 更新模態視窗內容
+                        document.getElementById('modalNewsTitle').textContent = news.title;
+                        document.getElementById('modalNewsSource').textContent = news.source;
+                        document.getElementById('modalNewsDate').textContent = news.publish_date;
+                        document.getElementById('modalNewsContent').textContent = news.content || '無內容';
+                        
+                        // 設置新聞連結
+                        const urlBtn = document.getElementById('modalNewsUrl');
+                        if (news.url) {
+                            urlBtn.href = news.url;
+                            urlBtn.style.display = 'inline-block';
+                        } else {
+                            urlBtn.style.display = 'none';
+                        }
+                        
+                        // 顯示情緒
+                        let sentimentClass = 'sentiment-neutral';
+                        let sentimentLabel = '中性';
+                        let sentimentIcon = 'fa-meh';
+                        
+                        if (news.sentiment_score > 0.2) {
+                            sentimentClass = 'sentiment-positive';
+                            sentimentLabel = '正面';
+                            sentimentIcon = 'fa-smile';
+                        } else if (news.sentiment_score < -0.2) {
+                            sentimentClass = 'sentiment-negative';
+                            sentimentLabel = '負面';
+                            sentimentIcon = 'fa-frown';
+                        }
+                        
+                        document.getElementById('modalNewsSentiment').innerHTML = `
+                            <span class="badge ${sentimentClass}">
+                                <i class="far ${sentimentIcon}"></i> ${sentimentLabel} (${news.sentiment_score.toFixed(2)})
+                            </span>
+                        `;
+                        
+                        // 顯示關鍵字
+                        const keywordsContainer = document.getElementById('modalNewsKeywords');
+                        keywordsContainer.innerHTML = '';
+                        
+                        if (news.keywords && news.keywords.length > 0) {
+                            news.keywords.forEach(keyword => {
+                                keywordsContainer.innerHTML += `<span class="keyword-tag">${keyword}</span>`;
+                            });
+                        } else {
+                            keywordsContainer.innerHTML = '<p>無關鍵字</p>';
+                        }
+                        
+                        // 顯示相關股票
+                        const stocksContainer = document.getElementById('modalRelatedStocks');
+                        stocksContainer.innerHTML = '';
+                        
+                        if (relatedStocks && relatedStocks.length > 0) {
+                            relatedStocks.forEach(stock => {
+                                const relevancePercent = (stock.relevance * 100).toFixed(0);
+                                stocksContainer.innerHTML += `
+                                    <div class="stock-badge mb-2">
+                                        <strong>${stock.stock_id}</strong> ${stock.company_name || ''} 
+                                        <span class="badge bg-info">${relevancePercent}%</span>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            stocksContainer.innerHTML = '<p>無相關股票</p>';
+                        }
+                        
+                        // 繪製情緒圖表
+                        renderModalSentimentChart(news);
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        console.error('載入新聞詳情失敗:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入新聞詳情時發生錯誤:', error);
+                });
+        }
+        
+        // 載入情緒摘要
+        function loadSentimentSummary() {
+            const spinner = document.getElementById('summaryLoadingSpinner');
+            const content = document.getElementById('sentimentSummaryContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            let url = `/api/news/sentiment/summary?days=${currentDays}`;
+            if (currentStockId) {
+                url += `&stock_id=${currentStockId}`;
+            }
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const sentiment = data.sentiment;
+                        
+                        // 更新標題
+                        document.getElementById('stockTitle').textContent = currentStockId ? `${currentStockId} 新聞分析` : '全部新聞';
+                        
+                        // 更新新聞數量
+                        document.getElementById('newsCount').textContent = sentiment.news_count;
+                        
+                        // 更新平均情緒分數
+                        const avgSentiment = sentiment.avg_sentiment.toFixed(2);
+                        let sentimentClass = 'sentiment-neutral';
+                        
+                        if (sentiment.avg_sentiment > 0.2) {
+                            sentimentClass = 'sentiment-positive';
+                        } else if (sentiment.avg_sentiment < -0.2) {
+                            sentimentClass = 'sentiment-negative';
+                        }
+                        
+                        document.getElementById('avgSentiment').textContent = avgSentiment;
+                        document.getElementById('avgSentiment').className = sentimentClass;
+                        
+                        // 更新百分比條
+                        document.getElementById('positivePercent').textContent = `${(sentiment.positive_ratio * 100).toFixed(1)}%`;
+                        document.getElementById('neutralPercent').textContent = `${(sentiment.neutral_ratio * 100).toFixed(1)}%`;
+                        document.getElementById('negativePercent').textContent = `${(sentiment.negative_ratio * 100).toFixed(1)}%`;
+                        
+                        document.getElementById('positiveBar').style.width = `${sentiment.positive_ratio * 100}%`;
+                        document.getElementById('neutralBar').style.width = `${sentiment.neutral_ratio * 100}%`;
+                        document.getElementById('negativeBar').style.width = `${sentiment.negative_ratio * 100}%`;
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        console.error('載入情緒摘要失敗:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入情緒摘要時發生錯誤:', error);
+                });
+        }
+        
+        // 載入關鍵字
+        function loadKeywords() {
+            const spinner = document.getElementById('keywordsLoadingSpinner');
+            const content = document.getElementById('keywordsContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            let url = `/api/news/keywords?days=${currentDays}&limit=20`;
+            if (currentStockId) {
+                url += `&stock_id=${currentStockId}`;
+            }
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const keywordsList = document.getElementById('keywordsList');
+                        keywordsList.innerHTML = '';
+                        
+                        if (data.keywords && data.keywords.length > 0) {
+                            data.keywords.forEach(keyword => {
+                                // 根據計數設置字體大小
+                                const size = 0.8 + (keyword.count / 5) * 0.5; // 最小 0.8rem，根據計數增加
+                                keywordsList.innerHTML += `
+                                    <span class="keyword-tag" style="font-size: ${size}rem;">
+                                        ${keyword.keyword} <span class="badge bg-secondary">${keyword.count}</span>
+                                    </span>
+                                `;
+                            });
+                        } else {
+                            keywordsList.innerHTML = '<p>無關鍵字</p>';
+                        }
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        console.error('載入關鍵字失敗:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入關鍵字時發生錯誤:', error);
+                });
+        }
+        
+        // 載入熱門主題
+        function loadTopics() {
+            const spinner = document.getElementById('topicsLoadingSpinner');
+            const content = document.getElementById('topicsContent');
+            
+            spinner.style.display = 'block';
+            content.style.display = 'none';
+            
+            fetch(`/api/news/topics?days=7&limit=5`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const topicsList = document.getElementById('topicsList');
+                        topicsList.innerHTML = '';
+                        
+                        if (data.topics && data.topics.length > 0) {
+                            data.topics.forEach((topic, index) => {
+                                // 創建相關新聞列表
+                                let newsListHtml = '';
+                                if (topic.related_news && topic.related_news.length > 0) {
+                                    topic.related_news.forEach(news => {
+                                        newsListHtml += `
+                                            <li class="small">
+                                                <a href="#" class="news-title-link" data-bs-toggle="modal" data-bs-target="#newsDetailModal" data-news-id="${news.id}">
+                                                    ${news.title}
+                                                </a>
+                                            </li>
+                                        `;
+                                    });
+                                } else {
+                                    newsListHtml = '<li>無相關新聞</li>';
+                                }
+                                
+                                topicsList.innerHTML += `
+                                    <div class="card topic-card mb-2">
+                                        <div class="card-header">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0">${topic.keyword}</h6>
+                                                <span class="badge bg-info">${topic.count} 則新聞</span>
+                                            </div>
+                                        </div>
+                                        <div class="card-body p-2">
+                                            <ul class="mb-0">
+                                                ${newsListHtml}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            // 註冊新聞點擊事件
+                            document.querySelectorAll('#topicsList .news-title-link').forEach(link => {
+                                link.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    const newsId = this.getAttribute('data-news-id');
+                                    loadNewsDetail(newsId);
+                                });
+                            });
+                        } else {
+                            topicsList.innerHTML = '<p>無熱門主題</p>';
+                        }
+                        
+                        // 顯示內容
+                        spinner.style.display = 'none';
+                        content.style.display = 'block';
+                    } else {
+                        console.error('載入熱門主題失敗:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('載入熱門主題時發生錯誤:', error);
+                });
+        }
+        
+        // 載入情緒趨勢圖
+        function loadSentimentTrend() {
+            const spinner = document.getElementById('chartLoadingSpinner');
+            spinner.style.display = 'block';
+            
+            let url = `/api/news/sentiment/trend?days=${currentDays}`;
+            if (currentStockId) {
+                url += `&stock_id=${currentStockId}`;
+            }
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // 準備圖表資料
+                        const trendData = data.trend || [];
+                        
+                        if (trendData.length > 0) {
+                            // 繪製情緒趨勢圖
+                            renderSentimentChart(trendData);
+                            
+                            // 初始化新聞數量圖表 (懶加載)
+                            initNewsVolumeChart(trendData);
+                        } else {
+                            // 清空圖表
+                            renderSentimentChart([]);
+                            initNewsVolumeChart([]);
+                        }
+                    } else {
+                        console.error('載入情緒趨勢失敗:', data.message);
+                    }
+                    
+                    spinner.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('載入情緒趨勢時發生錯誤:', error);
+                    spinner.style.display = 'none';
+                });
+        }
+        
+        // 渲染情緒趨勢圖
+        function renderSentimentChart(trendData) {
+            const canvas = document.getElementById('sentimentChart');
+            const ctx = canvas.getContext('2d');
+            
+            // 如果已有圖表，銷毀它
+            if (chartObjects.sentiment) {
+                chartObjects.sentiment.destroy();
+            }
+            
+            if (trendData.length === 0) {
+                // 創建空圖表
+                chartObjects.sentiment = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: []
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '無資料可顯示'
+                            }
+                        }
+                    }
+                });
+                return;
+            }
+            
+            // 準備資料
+            const labels = trendData.map(item => item.publish_date);
+            const sentimentData = trendData.map(item => item.weighted_score);
+            
+            // 創建新的圖表
+            chartObjects.sentiment = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '情緒分數',
+                        data: sentimentData,
+                        fill: true,
+                        backgroundColor: function(context) {
+                            const chart = context.chart;
+                            const {ctx, chartArea} = chart;
+                            if (!chartArea) {
+                                return null;
+                            }
+                            
+                            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                            gradient.addColorStop(0, 'rgba(255, 99, 132, 0.2)');
+                            gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+                            gradient.addColorStop(1, 'rgba(75, 192, 192, 0.2)');
+                            return gradient;
+                        },
+                        borderColor: function(context) {
+                            const value = context.raw;
+                            if (value >= 0) {
+                                return 'rgb(75, 192, 192)';
+                            } else {
+                                return 'rgb(255, 99, 132)';
+                            }
+                        },
+                        borderWidth: 2,
+                        pointBackgroundColor: function(context) {
+                            const value = context.raw;
+                            if (value >= 0) {
+                                return 'rgb(75, 192, 192)';
+                            } else {
+                                return 'rgb(255, 99, 132)';
+                            }
+                        },
+                        pointRadius: 5,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: currentStockId ? `${currentStockId} 新聞情緒趨勢` : '全部新聞情緒趨勢'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    const value = context.raw;
+                                    
+                                    // 情緒標籤
+                                    let sentiment = '中性';
+                                    if (value > 0.2) {
+                                        sentiment = '正面';
+                                    } else if (value < -0.2) {
+                                        sentiment = '負面';
+                                    }
+                                    
+                                    return `${label}${value.toFixed(2)} (${sentiment})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            suggestedMin: -1,
+                            suggestedMax: 1,
+                            grid: {
+                                color: function(context) {
+                                    if (context.tick.value === 0) {
+                                        return 'rgba(0, 0, 0, 0.3)';
+                                    }
+                                    return 'rgba(0, 0, 0, 0.1)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 初始化新聞數量圖表
+        function initNewsVolumeChart(trendData = null) {
+            const canvas = document.getElementById('newsVolumeChart');
+            const ctx = canvas.getContext('2d');
+            
+            // 如果已有圖表，銷毀它
+            if (chartObjects.volume) {
+                chartObjects.volume.destroy();
+            }
+            
+            if (!trendData || trendData.length === 0) {
+                // 創建空圖表
+                chartObjects.volume = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: []
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '無資料可顯示'
+                            }
+                        }
+                    }
+                });
+                return;
+            }
+            
+            // 準備資料
+            const labels = trendData.map(item => item.publish_date);
+            const newsCountData = trendData.map(item => item.news_count);
+            
+            // 創建新的圖表
+            chartObjects.volume = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '新聞數量',
+                        data: newsCountData,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgb(54, 162, 235)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: currentStockId ? `${currentStockId} 新聞數量` : '全部新聞數量'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 渲染模態框情緒圖表
+        function renderModalSentimentChart(news) {
+            const canvas = document.getElementById('modalSentimentChart');
+            const ctx = canvas.getContext('2d');
+            
+            // 如果已有圖表，銷毀它
+            if (chartObjects.modalSentiment) {
+                chartObjects.modalSentiment.destroy();
+            }
+            
+            // 準備資料
+            const data = [
+                news.positive_score || 0,
+                news.neutral_score || 0,
+                news.negative_score || 0
+            ];
+            
+            // 創建新的圖表
+            chartObjects.modalSentiment = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['正面', '中性', '負面'],
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(201, 203, 207, 0.7)',
+                            'rgba(255, 99, 132, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgb(75, 192, 192)',
+                            'rgb(201, 203, 207)',
+                            'rgb(255, 99, 132)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '情緒分布'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    return `${context.label}: ${(value * 100).toFixed(1)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

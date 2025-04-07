@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資料下載 - 台股預測系統</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .header {
+            background: linear-gradient(135deg, #0d6efd, #0dcaf0);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            margin-bottom: 2rem;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .feature-card {
+            border-radius: 10px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin-bottom: 20px;
+            background-color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            height: 100%;
+        }
+        .download-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .download-option {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+        .download-option:last-child {
+            border-bottom: none;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: none;
+            font-weight: bold;
+        }
+        .progress {
+            height: 20px;
+            margin-bottom: 10px;
+        }
+        .log-container {
+            background-color: #343a40;
+            color: #f8f9fa;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            font-family: monospace;
+            margin-top: 15px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+        .log-entry.info {
+            color: #17a2b8;
+        }
+        .log-entry.success {
+            color: #28a745;
+        }
+        .log-entry.warning {
+            color: #ffc107;
+        }
+        .log-entry.error {
+            color: #dc3545;
+        }
+        .footer {
+            background-color: #343a40;
+            color: #f8f9fa;
+            padding: 2rem 0;
+            margin-top: 2rem;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            transform: scale(1.05);
+        }
+        .has-api-key {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 導航欄 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line me-2"></i>台股預測系統
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">首頁</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/download">資料下載</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/predict">股票預測</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/batch_predict">批次預測</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/news">新聞分析</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/topics">熱門主題</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/train">模型訓練</a>
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <input class="form-control me-2" type="search" placeholder="股票代碼" id="quickSearchInput">
+                    <button class="btn btn-outline-light" onclick="quickSearch()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 頁首 -->
+    <header class="header">
+        <div class="container">
+            <h1 class="display-4">資料下載</h1>
+            <p class="lead">定期更新資料來源，確保預測模型使用最新的市場資訊</p>
+        </div>
+    </header>
+
+    <!-- 主要內容 -->
+    <main class="container">
+        <!-- API金鑰設定 -->
+        <section class="download-container mb-4">
+            <h3 class="mb-3">API金鑰設定</h3>
+            <div class="row no-api-key">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label for="apiKeyInput" class="form-label">FinLab API金鑰</label>
+                        <input type="text" class="form-control" id="apiKeyInput" placeholder="請輸入您的API金鑰">
+                        <div class="form-text text-muted">此金鑰用於從FinLab下載台股資料，請妥善保管</div>
+                    </div>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-primary mb-3 w-100" id="loadApiKeyBtn">
+                        <i class="fas fa-key me-2"></i>登入FinLab
+                    </button>
+                </div>
+                <div class="col-12">
+                    <div class="mb-3">
+                        <label for="apiKeyFileInput" class="form-label">或從檔案載入金鑰</label>
+                        <div class="input-group">
+                            <input class="form-control" type="file" id="apiKeyFileInput" accept=".txt">
+                            <button class="btn btn-outline-secondary" type="button" id="apiKeyFromFileBtn">
+                                <i class="fas fa-upload me-1"></i> 載入
+                            </button>
+                        </div>
+                        <div class="form-text text-muted">支援從 apikey.txt 或其他文字檔載入</div>
+                    </div>
+                </div>
+            </div>
+            <div class="has-api-key">
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>已成功登入 FinLab API
+                    <button class="btn btn-sm btn-outline-success float-end" id="changeApiKeyBtn">
+                        變更金鑰
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 下載選項 -->
+        <section class="download-container mb-4">
+            <h3 class="mb-3">下載選項</h3>
+            <p>選擇您需要下載的資料類型：</p>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header">核心資料</div>
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="price" id="priceCheck" checked>
+                                <label class="form-check-label" for="priceCheck">
+                                    股價資料 <small class="text-muted">(開盤、收盤、最高、最低、成交量)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="technical" id="technicalCheck" checked>
+                                <label class="form-check-label" for="technicalCheck">
+                                    技術指標 <small class="text-muted">(KD、RSI、MACD、均線等)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="company" id="companyCheck" checked>
+                                <label class="form-check-label" for="companyCheck">
+                                    公司資訊 <small class="text-muted">(基本資料、產業分類)</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">財務資料</div>
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="financial" id="financialCheck" checked>
+                                <label class="form-check-label" for="financialCheck">
+                                    財務報表 <small class="text-muted">(資產、負債、營收、獲利等)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="revenue" id="revenueCheck" checked>
+                                <label class="form-check-label" for="revenueCheck">
+                                    月營收資料 <small class="text-muted">(每月營收數據)</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header">交易資料</div>
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="institutional" id="institutionalCheck" checked>
+                                <label class="form-check-label" for="institutionalCheck">
+                                    三大法人資料 <small class="text-muted">(外資、投信、自營商)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="margin" id="marginCheck" checked>
+                                <label class="form-check-label" for="marginCheck">
+                                    融資融券資料 <small class="text-muted">(信用交易)</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">其他資料</div>
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="economic" id="economicCheck">
+                                <label class="form-check-label" for="economicCheck">
+                                    經濟指標 <small class="text-muted">(景氣對策信號、PMI等)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input download-option-checkbox" type="checkbox" value="news" id="newsCheck" checked>
+                                <label class="form-check-label" for="newsCheck">
+                                    新聞資料 <small class="text-muted">(最近7天股票相關新聞)</small>
+                                </label>
+                                <div class="mt-2">
+                                    <label for="newsDaysInput" class="form-label">下載最近幾天的新聞：</label>
+                                    <select class="form-select" id="newsDaysInput">
+                                        <option value="7" selected>7天</option>
+                                        <option value="14">14天</option>
+                                        <option value="30">30天</option>
+                                        <option value="90">90天</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button class="btn btn-secondary" id="selectAllBtn">
+                    <i class="fas fa-check-square me-2"></i>全選
+                </button>
+                <button class="btn btn-primary" id="startDownloadBtn">
+                    <i class="fas fa-download me-2"></i>開始下載
+                </button>
+            </div>
+        </section>
+        
+        <!-- 資料庫設定 -->
+        <section class="download-container mb-4">
+            <h3 class="mb-3">資料庫設定</h3>
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label for="databasePathInput" class="form-label">資料庫路徑</label>
+                        <input type="text" class="form-control" id="databasePathInput" value="tw_stock_data.db">
+                        <div class="form-text text-muted">資料將儲存到此資料庫檔案中</div>
+                    </div>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-secondary mb-3 w-100" id="selectDbPathBtn">
+                        <i class="fas fa-folder-open me-2"></i>選擇位置
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 進度顯示 -->
+        <section class="download-container mb-4" id="progressSection" style="display: none;">
+            <h3 class="mb-3">下載進度</h3>
+            
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" id="downloadProgressBar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">0%</div>
+            </div>
+            
+            <p class="mt-2">目前正在下載: <span id="currentDownloadStatus">準備中...</span></p>
+            
+            <div class="log-container">
+                <div id="downloadLog">
+                    <div class="log-entry">準備開始下載，請稍候...</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h5>台股預測系統</h5>
+                    <p>結合技術分析與新聞情緒，讓您的投資決策更明智。</p>
+                </div>
+                <div class="col-md-4">
+                    <h5>功能導航</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="/predict" class="text-light">股票預測</a></li>
+                        <li><a href="/batch_predict" class="text-light">批次預測</a></li>
+                        <li><a href="/news" class="text-light">新聞分析</a></li>
+                        <li><a href="/topics" class="text-light">熱門主題</a></li>
+                        <li><a href="/train" class="text-light">模型訓練</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h5>功能導航</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="/download" class="text-light">資料下載</a></li>
+                        <li><a href="/api/docs" class="text-light">API 文檔</a></li>
+                    </ul>
+                    <h5 class="mt-3">聯絡我們</h5>
+                    <p><i class="fas fa-envelope me-2"></i> info@stockprediction.tw</p>
+                    <p><i class="fas fa-phone me-2"></i> (02) 1234-5678</p>
+                </div>
+            </div>
+            <hr class="mt-4 mb-4" style="border-color: rgba(255,255,255,0.1);">
+            <div class="text-center">
+                <p class="mb-0">© 2025 台股預測系統. 保留所有權利。</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 驗證代碼處理區域
+        let awaiting_verification = false;
+        let verification_interval;
+
+        // 安全地存取localStorage
+        const storage = {
+            getItem: function(key) {
+                try {
+                    return window.localStorage.getItem(key);
+                } catch (e) {
+                    console.warn('無法使用 localStorage:', e);
+                    return null;
+                }
+            },
+            setItem: function(key, value) {
+                try {
+                    window.localStorage.setItem(key, value);
+                    return true;
+                } catch (e) {
+                    console.warn('無法使用 localStorage:', e);
+                    return false;
+                }
+            },
+            removeItem: function(key) {
+                try {
+                    window.localStorage.removeItem(key);
+                    return true;
+                } catch (e) {
+                    console.warn('無法使用 localStorage:', e);
+                    return false;
+                }
+            }
+        };
+
+        // API金鑰相關功能
+        document.getElementById('loadApiKeyBtn').addEventListener('click', function() {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            if (apiKey) {
+                // 顯示處理中狀態
+                const btn = this;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>登入中...';
+                btn.disabled = true;
+                
+                // 發送API請求
+                loginToFinlab(apiKey)
+                    .then(response => {
+                        if (response.needs_verification) {
+                            // 需要驗證碼
+                            awaiting_verification = true;
+                            startVerificationCheck(apiKey);
+                            
+                            const verifyCode = prompt("請複製並貼上從FinLab收到的驗證碼:");
+                            if (verifyCode) {
+                                submitVerification(apiKey, verifyCode);
+                            }
+                        } else if (response.status === 'success') {
+                            // 登入成功
+                            handleLoginSuccess(apiKey);
+                        } else {
+                            // 登入失敗
+                            alert(`登入失敗: ${response.message || '請檢查API金鑰是否正確'}`);
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("登入請求錯誤:", error);
+                        alert('登入請求發生錯誤，請稍後再試');
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    });
+            } else {
+                alert('請輸入有效的API金鑰');
+            }
+        });
+
+        // 登入到FinLab
+        function loginToFinlab(apiKey) {
+            // 實際應用中應該使用AJAX發送真實請求
+            // 這裡模擬API響應
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    // 模擬有3分之1的機率需要驗證碼
+                    const needsVerification = Math.random() < 0.3;
+                    
+                    if (needsVerification) {
+                        resolve({ needs_verification: true });
+                    } else {
+                        resolve({ status: 'success' });
+                    }
+                }, 1500);
+                
+                // 實際應用時換成以下真實請求
+                /*
+                return fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ api_key: apiKey }),
+                })
+                .then(response => response.json());
+                */
+            });
+        }
+
+        // 開始檢查驗證狀態
+        function startVerificationCheck(apiKey) {
+            // 顯示驗證提示
+            const verificationPrompt = document.createElement('div');
+            verificationPrompt.id = 'verificationPrompt';
+            verificationPrompt.className = 'alert alert-info mt-3';
+            verificationPrompt.innerHTML = '<i class="fas fa-info-circle me-2"></i>FinLab 已發送驗證碼到您的郵件，請輸入驗證碼完成登入。';
+            
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            apiKeyInput.parentNode.appendChild(verificationPrompt);
+            
+            // 設置定時檢查
+            verification_interval = setInterval(() => {
+                checkVerificationStatus(apiKey);
+            }, 3000);
+            
+            // 30秒後自動停止檢查
+            setTimeout(() => {
+                if (awaiting_verification) {
+                    clearInterval(verification_interval);
+                    awaiting_verification = false;
+                    
+                    // 重設按鈕
+                    const btn = document.getElementById('loadApiKeyBtn');
+                    btn.innerHTML = '<i class="fas fa-key me-2"></i>登入FinLab';
+                    btn.disabled = false;
+                    
+                    // 移除提示
+                    const prompt = document.getElementById('verificationPrompt');
+                    if (prompt) prompt.remove();
+                    
+                    alert('驗證超時，請重新嘗試登入');
+                }
+            }, 30000);
+        }
+
+        // 檢查驗證狀態
+        function checkVerificationStatus(apiKey) {
+            // 實際應用中使用AJAX請求後端檢查狀態
+            // 這裡僅做模擬
+            if (!awaiting_verification) return;
+            
+            // 模擬檢查
+            /*
+            fetch('/api/check_verification')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        clearInterval(verification_interval);
+                        awaiting_verification = false;
+                        handleLoginSuccess(apiKey);
+                    }
+                });
+            */
+        }
+
+        // 提交驗證碼
+        function submitVerification(apiKey, code) {
+            // 實際應用中應該使用AJAX發送真實請求
+            // 這裡模擬API響應
+            setTimeout(() => {
+                clearInterval(verification_interval);
+                awaiting_verification = false;
+                
+                // 移除提示
+                const prompt = document.getElementById('verificationPrompt');
+                if (prompt) prompt.remove();
+                
+                handleLoginSuccess(apiKey);
+            }, 1500);
+            
+            /*
+            fetch('/api/submit_verification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ api_key: apiKey, verification_code: code }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearInterval(verification_interval);
+                awaiting_verification = false;
+                
+                if (data.status === 'success') {
+                    handleLoginSuccess(apiKey);
+                } else {
+                    alert(`驗證失敗: ${data.message}`);
+                    
+                    // 重設按鈕
+                    const btn = document.getElementById('loadApiKeyBtn');
+                    btn.innerHTML = '<i class="fas fa-key me-2"></i>登入FinLab';
+                    btn.disabled = false;
+                }
+            });
+            */
+        }
+
+        // 處理登入成功
+        function handleLoginSuccess(apiKey) {
+            document.querySelectorAll('.no-api-key').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.has-api-key').forEach(el => el.style.display = 'block');
+            storage.setItem('finlab_api_key', apiKey);
+            
+            // 重設按鈕
+            const btn = document.getElementById('loadApiKeyBtn');
+            btn.innerHTML = '<i class="fas fa-key me-2"></i>登入FinLab';
+            btn.disabled = false;
+            
+            // 滾動到下載選項區域
+            document.querySelector('.download-container:nth-child(2)').scrollIntoView({
+                behavior: 'smooth'
+            });
+        }
+
+        document.getElementById('changeApiKeyBtn').addEventListener('click', function() {
+            document.querySelectorAll('.no-api-key').forEach(el => el.style.display = 'block');
+            document.querySelectorAll('.has-api-key').forEach(el => el.style.display = 'none');
+        });
+
+        // 從檔案載入API金鑰
+        document.getElementById('apiKeyFromFileBtn').addEventListener('click', function() {
+            const fileInput = document.getElementById('apiKeyFileInput');
+            const file = fileInput.files[0];
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const apiKey = e.target.result.trim();
+                    document.getElementById('apiKeyInput').value = apiKey;
+                };
+                reader.readAsText(file);
+            } else {
+                alert('請先選擇API金鑰檔案');
+            }
+        });
+
+        document.getElementById('apiKeyFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('apiKeyFromFileBtn').click();
+            }
+        });
+
+        // 全選功能
+        document.getElementById('selectAllBtn').addEventListener('click', function() {
+            document.querySelectorAll('.download-option-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+        });
+
+        // 選擇資料庫路徑
+        document.getElementById('selectDbPathBtn').addEventListener('click', function() {
+            // 在網頁版中我們無法實際選擇檔案位置，但可以模擬這個過程
+            alert('在實際應用中，這裡會打開檔案選擇對話框讓您選擇資料庫位置');
+        });
+
+        // 開始下載
+        document.getElementById('startDownloadBtn').addEventListener('click', function() {
+            // 檢查是否設定API金鑰
+            if (!storage.getItem('finlab_api_key')) {
+                alert('請先登入FinLab API');
+                return;
+            }
+            
+            // 獲取所有選中的資料類型
+            const selectedTypes = [];
+            document.querySelectorAll('.download-option-checkbox:checked').forEach(checkbox => {
+                selectedTypes.push(checkbox.value);
+            });
+            
+            if (selectedTypes.length === 0) {
+                alert('請至少選擇一種資料類型');
+                return;
+            }
+            
+            // 獲取資料庫路徑
+            const dbPath = document.getElementById('databasePathInput').value.trim();
+            if (!dbPath) {
+                alert('請提供資料庫路徑');
+                return;
+            }
+            
+            // 確認是否繼續下載
+            const confirmMessage = `即將下載以下資料類型:\n${selectedTypes.map(t => typeNames[t] || t).join(', ')}\n\n資料將儲存到:\n${dbPath}\n\n此過程可能需要一段時間。要繼續嗎？`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // 顯示進度區域
+            document.getElementById('progressSection').style.display = 'block';
+            
+            // 模擬下載過程
+            simulateDownload(selectedTypes, dbPath);
+            
+            // 實際應用時使用以下代碼
+            /*
+            // 準備API請求數據
+            const requestData = {
+                api_key: storage.getItem('finlab_api_key'),
+                database_path: dbPath,
+                data_types: selectedTypes
+            };
+            
+            // 如果是新聞，添加天數
+            if (selectedTypes.includes('news')) {
+                requestData.news_days = parseInt(document.getElementById('newsDaysInput').value);
+            }
+            
+            // 發送下載請求
+            fetch('/api/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 開始輪詢下載進度
+                    startProgressPolling();
+                } else {
+                    alert(`下載請求失敗: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error("下載請求錯誤:", error);
+                alert('下載請求發生錯誤，請稍後再試');
+            });
+            */
+        });
+
+        // 輪詢下載進度
+        function startProgressPolling() {
+            const progressInterval = setInterval(() => {
+                fetch('/api/download/status')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'error') {
+                            clearInterval(progressInterval);
+                            alert(`下載錯誤: ${data.message}`);
+                            return;
+                        }
+                        
+                        // 更新進度
+                        const progressBar = document.getElementById('downloadProgressBar');
+                        const statusText = document.getElementById('currentDownloadStatus');
+                        const logContainer = document.getElementById('downloadLog');
+                        
+                        // 設置進度條
+                        progressBar.style.width = data.progress + '%';
+                        progressBar.textContent = data.progress + '%';
+                        
+                        // 更新當前狀態
+                        statusText.textContent = data.current_task || '處理中...';
+                        
+                        // 添加日誌
+                        if (data.logs && data.logs.length > 0) {
+                            data.logs.forEach(log => {
+                                const logClass = log.level || '';
+                                logContainer.innerHTML += `<div class="log-entry ${logClass}">${log.message}</div>`;
+                            });
+                            
+                            // 滾動到日誌底部
+                            logContainer.scrollTop = logContainer.scrollHeight;
+                        }
+                        
+                        // 如果完成
+                        if (data.completed) {
+                            clearInterval(progressInterval);
+                            progressBar.classList.remove('progress-bar-animated');
+                            
+                            if (data.success) {
+                                alert('所有資料已成功下載！');
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error("獲取進度錯誤:", error);
+                    });
+            }, 1000);
+        }
+
+        // 定義各資料類型對應的中文名稱
+        const typeNames = {
+            'price': '股價資料',
+            'technical': '技術指標',
+            'company': '公司資訊',
+            'financial': '財務報表',
+            'revenue': '月營收資料',
+            'institutional': '三大法人資料',
+            'margin': '融資融券資料',
+            'economic': '經濟指標',
+            'news': '新聞資料'
+        };
+
+        // 模擬下載過程
+        function simulateDownload(dataTypes, dbPath) {
+            const progressBar = document.getElementById('downloadProgressBar');
+            const statusText = document.getElementById('currentDownloadStatus');
+            const logContainer = document.getElementById('downloadLog');
+            
+            let progress = 0;
+            const totalSteps = dataTypes.length;
+            let currentStep = 0;
+            
+            // 清空日誌
+            logContainer.innerHTML = '<div class="log-entry info">===== 開始下載資料 =====</div>';
+            logContainer.innerHTML += `<div class="log-entry">資料庫路徑: ${dbPath}</div>`;
+            
+            // 安全地顯示API金鑰
+            const apiKey = storage.getItem('finlab_api_key');
+            if (apiKey) {
+                logContainer.innerHTML += `<div class="log-entry">API金鑰: ${apiKey.substring(0, 8)}******</div>`;
+            } else {
+                logContainer.innerHTML += `<div class="log-entry warning">警告: 無法安全取得API金鑰</div>`;
+            }
+            
+            
+            // 設置下載間隔
+            const downloadInterval = setInterval(function() {
+                if (currentStep >= totalSteps) {
+                    clearInterval(downloadInterval);
+                    
+                    // 完成所有下載
+                    progress = 100;
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = progress + '%';
+                    progressBar.classList.remove('progress-bar-animated');
+                    
+                    statusText.textContent = '所有資料下載完成';
+                    
+                    logContainer.innerHTML += '<div class="log-entry success">===== 所有資料下載完成 =====</div>';
+                    logContainer.innerHTML += '<div class="log-entry">資料已成功儲存到資料庫: ' + dbPath + '</div>';
+                    
+                    // 滾動到日誌底部
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    
+                    // 提示完成
+                    setTimeout(function() {
+                        alert('所有資料已成功下載！');
+                    }, 500);
+                    
+                    return;
+                }
+                
+                // 更新當前下載的資料類型
+                const currentType = dataTypes[currentStep];
+                const typeName = typeNames[currentType] || currentType;
+                
+                statusText.textContent = `正在下載 ${typeName}...`;
+                
+                // 添加下載日誌
+                logContainer.innerHTML += `<div class="log-entry info">開始下載 ${typeName}...</div>`;
+                
+                // 模擬不同資料類型的下載日誌
+                switch(currentType) {
+                    case 'price':
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入收盤價資料...</div>', 500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入開盤價資料...</div>', 1000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入最高價資料...</div>', 1500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入最低價資料...</div>', 2000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入成交量資料...</div>', 2500);
+                        break;
+                        
+                    case 'technical':
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">計算技術指標: RSI...</div>', 500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">計算技術指標: 移動平均線...</div>', 1000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">計算技術指標: MACD...</div>', 1500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">計算技術指標: KD指標...</div>', 2000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">計算技術指標: 布林帶...</div>', 2500);
+                        break;
+                        
+                    case 'financial':
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">下載資產負債表資料...</div>', 500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">下載損益表資料...</div>', 1000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">下載現金流量表資料...</div>', 1500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">計算財務比率...</div>', 2000);
+                        break;
+                        
+                    case 'institutional':
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">下載外資買賣資料...</div>', 500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">下載投信買賣資料...</div>', 1000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">下載自營商買賣資料...</div>', 1500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">計算主力籌碼集中度...</div>', 2000);
+                        break;
+                        
+                    case 'news':
+                        const days = document.getElementById('newsDaysInput').value;
+                        setTimeout(() => logContainer.innerHTML += `<div class="log-entry">準備下載最近 ${days} 天的新聞...</div>`, 500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">從經濟日報獲取新聞...</div>', 1000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">從工商時報獲取新聞...</div>', 1500);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">從證交所獲取公告...</div>', 2000);
+                        setTimeout(() => logContainer.innerHTML += '<div class="log-entry">處理新聞內容並計算情緒分數...</div>', 2500);
+                        break;
+                        
+                    default:
+                        setTimeout(() => logContainer.innerHTML += `<div class="log-entry">正在下載 ${typeName} 資料...</div>`, 1000);
+                }
+                
+                // 滾動到日誌底部
+                setTimeout(() => {
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }, 500);
+                
+                // 模擬進度增加
+                setTimeout(function() {
+                    progress = Math.round((currentStep + 1) / totalSteps * 100);
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = progress + '%';
+                    
+                    // 隨機添加警告日誌 (模擬真實下載中可能出現的警告)
+                    if (Math.random() < 0.3) {
+                        const warnings = [
+                            `部分 ${typeName} 資料無法下載，使用快取數據`,
+                            `部分股票的 ${typeName} 資料缺失`,
+                            `資料時間範圍有限制，只能下載最近的資料`
+                        ];
+                        const randomWarning = warnings[Math.floor(Math.random() * warnings.length)];
+                        logContainer.innerHTML += `<div class="log-entry warning">警告: ${randomWarning}</div>`;
+                    }
+                    
+                    // 添加完成日誌
+                    logContainer.innerHTML += `<div class="log-entry success">${typeName} 下載完成</div>`;
+                    
+                    // 滾動到日誌底部
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    
+                    // 進入下一步
+                    currentStep++;
+                }, 3000);
+            }, 4000);
+        }
+
+        // 檢查是否已有API金鑰
+        window.addEventListener('DOMContentLoaded', function() {
+            if (storage.getItem('finlab_api_key')) {
+                document.querySelectorAll('.no-api-key').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('.has-api-key').forEach(el => el.style.display = 'block');
+            }
+            
+            // 檢查是否支援 FileReader API (主要用於從檔案載入金鑰)
+            if (!window.FileReader) {
+                document.getElementById('apiKeyFileInput').disabled = true;
+                document.getElementById('apiKeyFromFileBtn').disabled = true;
+                const fileMsg = document.createElement('div');
+                fileMsg.className = 'form-text text-danger';
+                fileMsg.textContent = '您的瀏覽器不支援檔案讀取，請直接輸入API金鑰';
+                document.getElementById('apiKeyFileInput').parentNode.appendChild(fileMsg);
+            }
+            
+            // 設定資料庫路徑的預設值 (從localStorage讀取或使用預設值)
+            const storedDbPath = storage.getItem('db_path');
+            if (storedDbPath) {
+                document.getElementById('databasePathInput').value = storedDbPath;
+            }
+            
+            // 從URL讀取可能的參數
+            const urlParams = new URLSearchParams(window.location.search);
+            const autoStart = urlParams.get('auto_start');
+            const dataType = urlParams.get('data_type');
+            
+            // 如果URL帶有自動開始參數且已有API金鑰，則自動選擇資料類型並開始下載
+            if (autoStart === "true" && storage.getItem('finlab_api_key')) {
+                // 先取消全選
+                document.querySelectorAll('.download-option-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                
+                // 選擇指定的資料類型或預設全選
+                if (dataType) {
+                    // 如果指定了特定資料類型，就只選擇該類型
+                    const dataTypes = dataType.split(',');
+                    dataTypes.forEach(type => {
+                        const checkbox = document.querySelector(`.download-option-checkbox[value="${type}"]`);
+                        if (checkbox) {
+                            checkbox.checked = true;
+                        }
+                    });
+                } else {
+                    // 否則全選
+                    document.getElementById('selectAllBtn').click();
+                }
+                
+                // 自動滾動到下載按鈕位置
+                document.getElementById('startDownloadBtn').scrollIntoView({ behavior: 'smooth' });
+                
+                // 延遲一下再自動點擊下載按鈕
+                setTimeout(() => {
+                    document.getElementById('startDownloadBtn').click();
+                }, 1500);
+            }
+        });
+
+        // 快速搜尋功能
+        function quickSearch() {
+            const searchInput = document.getElementById('quickSearchInput');
+            const stockId = searchInput.value.trim();
+            if (stockId) {
+                window.location.href = `/predict?stock_id=${stockId}`;
+            }
+        }
+
+        // Enter 鍵觸發搜尋
+        document.getElementById('quickSearchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                quickSearch();
+            }
+        });
+        
+        // 儲存資料庫路徑到localStorage
+        document.getElementById('databasePathInput').addEventListener('change', function() {
+            const dbPath = this.value.trim();
+            if (dbPath) {
+                storage.setItem('db_path', dbPath);
+            }
+        });
+        
+        // 預設初始選中
+        document.getElementById('selectAllBtn').click();
+    </script>
+</body>
+</html>提示完成
+                    setTimeout(function() {
+                        alert('所有資料已成功下載！');
+                    }, 500);
+                    
+                    return;
+                }
+                
+                // 更新當前下載的資料類型
+                const currentType = dataTypes[currentStep];
+                const typeName = typeNames[currentType] || currentType;
+                
+                statusText.textContent = `正在下載 ${typeName}...`;
+                
+                // 添加下載日誌
+                logContainer.innerHTML += `<div class="log-entry info">開始下載 ${typeName}...</div>`;
+                
+                // 模擬下載過程中的日誌
+                if (currentType === 'price') {
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入收盤價資料...</div>', 500);
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入開盤價資料...</div>', 1000);
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入最高價資料...</div>', 1500);
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入最低價資料...</div>', 2000);
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">載入成交量資料...</div>', 2500);
+                } else if (currentType === 'news') {
+                    const days = document.getElementById('newsDaysInput').value;
+                    setTimeout(() => logContainer.innerHTML += `<div class="log-entry">準備下載最近 ${days} 天的新聞...</div>`, 500);
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">從經濟日報獲取新聞...</div>', 1000);
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">從工商時報獲取新聞...</div>', 1500);
+                    setTimeout(() => logContainer.innerHTML += '<div class="log-entry">從證交所獲取公告...</div>', 2000);
+                }
+                
+                // 模擬進度增加
+                setTimeout(function() {
+                    progress = Math.round((currentStep + 1) / totalSteps * 100);
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = progress + '%';
+                    
+                    // 添加完成日誌
+                    logContainer.innerHTML += `<div class="log-entry success">${typeName} 下載完成</div>`;
+                    
+                    // 滾動到日誌底部
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    
+                    // 進入下一步
+                    currentStep++;
+                }, 3000);
+            }, 4000);
+        }
+
+        // 檢查是否已有API金鑰
+        window.addEventListener('DOMContentLoaded', function() {
+            if (localStorage.getItem('finlab_api_key')) {
+                document.querySelectorAll('.no-api-key').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('.has-api-key').forEach(el => el.style.display = 'block');
+            }
+        });
+
+        // 快速搜尋功能
+        function quickSearch() {
+            const searchInput = document.getElementById('quickSearchInput');
+            const stockId = searchInput.value.trim();
+            if (stockId) {
+                window.location.href = `/predict?stock_id=${stockId}`;
+            }
+        }
+
+        // Enter 鍵觸發搜尋
+        document.getElementById('quickSearchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                quickSearch();
+            }
+        });
+    </script>
+</body>
+</html>
